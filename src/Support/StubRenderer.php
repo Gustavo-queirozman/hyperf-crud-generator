@@ -19,10 +19,11 @@ final class StubRenderer
             throw new RuntimeException(sprintf('Unable to read stub: %s', $stub));
         }
 
-        foreach ($variables as $key => $value) {
-            $contents = str_replace('{{ ' . $key . ' }}', (string) $value, $contents);
-        }
-
-        return $contents;
+        return preg_replace_callback('/\{\{ ([a-z_]+) \}\}/', static function ($match) use ($variables) {
+            if (! array_key_exists($match[1], $variables)) {
+                throw new RuntimeException('Unresolved stub variable: ' . $match[1]);
+            }
+            return (string) $variables[$match[1]];
+        }, $contents);
     }
 }

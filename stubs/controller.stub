@@ -4,10 +4,18 @@ declare(strict_types=1);
 
 namespace {{ namespace }}\Controller;
 
+use {{ namespace }}\DTO\{{ model }}Data;
 use {{ namespace }}\Request\{{ model }}\Store{{ model }}Request;
 use {{ namespace }}\Request\{{ model }}\Update{{ model }}Request;
+use {{ namespace }}\Resource\{{ model }}Resource;
 use {{ namespace }}\Service\{{ model }}Service;
+use Hyperf\Contract\ValidatorInterface;
+use Hyperf\Database\Exception\QueryException;
+use Hyperf\Database\Model\ModelNotFoundException;
+use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\HttpServer\Contract\ResponseInterface;
+use Hyperf\Validation\Contract\ValidatorFactoryInterface;
+use Hyperf\Validation\ValidationException;
 use Psr\Http\Message\ResponseInterface as PsrResponseInterface;
 
 class {{ model }}Controller
@@ -15,32 +23,82 @@ class {{ model }}Controller
     public function __construct(
         private readonly {{ model }}Service $service,
         private readonly ResponseInterface $response,
+        private readonly ValidatorFactoryInterface $validators,
     ) {
     }
 
-    public function index(): PsrResponseInterface
+    public function index(RequestInterface $request): PsrResponseInterface
     {
-        return $this->response->json($this->service->list());
+        $validator = $this->validators->make($request->query(), [
+            'page' => ['sometimes', 'integer', 'min:1'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+            'sort' => ['sometimes', \Hyperf\Validation\Rule::in({{ sortable }})],
+            'direction' => ['sometimes', 'in:asc,desc'],
+            'filter' => ['sometimes', 'array'],
+            'search' => ['sometimes', 'string', 'max:255'],
+        ]);
+        if ($validator->fails()) {
+            return $this->validationError($validator);
+        }
+        $input = $validator->validated();
+        return $this->response->json($this->service->list(
+            (int) ($input['page'] ?? 1), (int) ($input['per_page'] ?? 15),
+            $input['sort'] ?? {{ primary_key }}, $input['direction'] ?? 'asc',
+            $input['filter'] ?? [], $input['search'] ?? null,
+        ));
     }
 
-    public function show(int $id): PsrResponseInterface
+    public function show(string $id): PsrResponseInterface
     {
-        return $this->response->json($this->service->get($id));
+        return $this->execute(fn () => ['data' => {{ model }}Resource::make($this->service->get($id))]);
     }
 
     public function store(Store{{ model }}Request $request): PsrResponseInterface
     {
-        return $this->response->json($this->service->create($request->validated()))->withStatus(201);
+        return $this->execute(fn () => ['data' => {{ model }}Resource::make(
+            $this->service->create({{ model }}Data::fromArray($request->validated()))
+        )], 201);
     }
 
-    public function update(int $id, Update{{ model }}Request $request): PsrResponseInterface
+    public function update(string $id, Update{{ model }}Request $request): PsrResponseInterface
     {
-        return $this->response->json($this->service->update($id, $request->validated()));
+        return $this->execute(fn () => ['data' => {{ model }}Resource::make(
+            $this->service->update($id, {{ model }}Data::fromArray($request->validated(), true))
+        )]);
     }
 
-    public function destroy(int $id): PsrResponseInterface
+    public function destroy(string $id): PsrResponseInterface
     {
-        $this->service->delete($id);
-        return $this->response->json(['deleted' => true]);
+        return $this->execute(function () use ($id): array {
+            $this->service->delete($id);
+            return [];
+        }, 204);
+    }
+
+    private function execute(callable $action, int $status = 200): PsrResponseInterface
+    {
+        try {
+            $data = $action();
+            return $status === 204
+                ? $this->response->raw('')->withStatus(204)
+                : $this->response->json($data)->withStatus($status);
+        } catch (ModelNotFoundException) {
+            return $this->response->json(['message' => 'Resource not found'])->withStatus(404);
+        } catch (ValidationException $e) {
+            return $this->validationError($e->validator);
+        } catch (QueryException $e) {
+            $state = (string) ($e->errorInfo[0] ?? $e->getCode());
+            if (str_starts_with($state, '23')) {
+                return $this->response->json(['message' => 'Database constraint conflict'])->withStatus(409);
+            }
+            throw $e;
+        }
+    }
+
+    private function validationError(ValidatorInterface $validator): PsrResponseInterface
+    {
+        return $this->response->json([
+            'message' => 'Validation failed', 'errors' => $validator->errors()->messages(),
+        ])->withStatus(422);
     }
 }

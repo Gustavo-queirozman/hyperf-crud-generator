@@ -1,0 +1,4 @@
+.git
+vendor
+tests/output
+.phpunit.cache

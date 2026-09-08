@@ -1,0 +1,18 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }}\Seeder;
+
+use {{ namespace }}\Factory\{{ model }}Factory;
+use {{ namespace }}\Model\{{ model }};
+
+final class {{ model }}Seeder
+{
+    public function run(array $rows): array
+    {
+        return (new {{ model }}())->getConnection()->transaction(
+            static fn () => array_map(static fn (array $row) => {{ model }}Factory::create($row), $rows)
+        );
+    }
+}

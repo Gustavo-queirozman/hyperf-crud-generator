@@ -2,14 +2,75 @@
 
 declare(strict_types=1);
 
-namespace HyperfTest\Cases;
+namespace {{ test_namespace }};
 
+use {{ namespace }}\Controller\{{ model }}Controller;
+use {{ namespace }}\Model\{{ model }};
+use {{ namespace }}\Request\{{ model }}\Store{{ model }}Request;
+use {{ namespace }}\Request\{{ model }}\Update{{ model }}Request;
+use {{ namespace }}\Service\{{ model }}Service;
+use Hyperf\Database\Model\ModelNotFoundException;
+use Hyperf\HttpMessage\Server\Response;
+use Hyperf\HttpServer\Contract\ResponseInterface;
+use Hyperf\Validation\Contract\ValidatorFactoryInterface;
 use PHPUnit\Framework\TestCase;
 
-class {{ model }}ControllerTest extends TestCase
+final class {{ model }}ControllerTest extends TestCase
 {
-    public function testCrudPlaceholder(): void
+    private function controller({{ model }}Service $service): {{ model }}Controller
     {
-        $this->markTestIncomplete('Connect this test to your Hyperf HTTP test client/database fixtures.');
+        $response = $this->createMock(ResponseInterface::class);
+        $response->method('json')->willReturnCallback(static fn ($data) => (new Response())->withContent(json_encode($data, JSON_THROW_ON_ERROR))->withHeader('Content-Type', 'application/json'));
+        $response->method('raw')->willReturnCallback(static fn ($body) => (new Response())->withContent($body));
+        return new {{ model }}Controller($service, $response, $this->createMock(ValidatorFactoryInterface::class));
+    }
+
+    public function testShowReturns404ForMissingResource(): void
+    {
+        $service = $this->createMock({{ model }}Service::class);
+        $service->method('get')->willThrowException(new ModelNotFoundException());
+        self::assertSame(404, $this->controller($service)->show((string) {{ test_id }})->getStatusCode());
+    }
+
+    public function testShowHidesSensitiveAndUnexpectedFields(): void
+    {
+        $model = $this->getMockBuilder({{ model }}::class)->disableOriginalConstructor()->getMock();
+        $model->method('toArray')->willReturn([{{ primary_key }} => {{ test_id }}, '__unexpected' => 'secret']);
+        $service = $this->createMock({{ model }}Service::class);
+        $service->method('get')->willReturn($model);
+        $response = $this->controller($service)->show((string) {{ test_id }});
+        self::assertSame(200, $response->getStatusCode());
+        self::assertArrayNotHasKey('__unexpected', json_decode((string) $response->getBody(), true)['data']);
+    }
+
+    public function testCreateReturns201(): void
+    {
+        $model = $this->getMockBuilder({{ model }}::class)->disableOriginalConstructor()->getMock();
+        $model->method('toArray')->willReturn([]);
+        $service = $this->createMock({{ model }}Service::class);
+        $service->expects(self::once())->method('create')->willReturn($model);
+        $request = $this->getMockBuilder(Store{{ model }}Request::class)->disableOriginalConstructor()->getMock();
+        $request->method('validated')->willReturn({{ example_payload }});
+        self::assertSame(201, $this->controller($service)->store($request)->getStatusCode());
+    }
+
+    public function testUpdateReturns200(): void
+    {
+        $model = $this->getMockBuilder({{ model }}::class)->disableOriginalConstructor()->getMock();
+        $model->method('toArray')->willReturn([]);
+        $service = $this->createMock({{ model }}Service::class);
+        $service->expects(self::once())->method('update')->willReturn($model);
+        $request = $this->getMockBuilder(Update{{ model }}Request::class)->disableOriginalConstructor()->getMock();
+        $request->method('validated')->willReturn([]);
+        self::assertSame(200, $this->controller($service)->update((string) {{ test_id }}, $request)->getStatusCode());
+    }
+
+    public function testDeleteReturns204WithoutBody(): void
+    {
+        $service = $this->createMock({{ model }}Service::class);
+        $service->expects(self::once())->method('delete')->with((string) {{ test_id }});
+        $response = $this->controller($service)->destroy((string) {{ test_id }});
+        self::assertSame(204, $response->getStatusCode());
+        self::assertSame('', (string) $response->getBody());
     }
 }

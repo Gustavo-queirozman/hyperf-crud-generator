@@ -1,7 +1,10 @@
 \Hyperf\HttpServer\Router\Router::addGroup('/{{ resource }}', function (): void {
     \Hyperf\HttpServer\Router\Router::get('', [\{{ namespace }}\Controller\{{ model }}Controller::class, 'index']);
-    \Hyperf\HttpServer\Router\Router::get('/{id:\\d+}', [\{{ namespace }}\Controller\{{ model }}Controller::class, 'show']);
     \Hyperf\HttpServer\Router\Router::post('', [\{{ namespace }}\Controller\{{ model }}Controller::class, 'store']);
-    \Hyperf\HttpServer\Router\Router::put('/{id:\\d+}', [\{{ namespace }}\Controller\{{ model }}Controller::class, 'update']);
-    \Hyperf\HttpServer\Router\Router::delete('/{id:\\d+}', [\{{ namespace }}\Controller\{{ model }}Controller::class, 'destroy']);
-});
+    \Hyperf\HttpServer\Router\Router::get('/{id}', [\{{ namespace }}\Controller\{{ model }}Controller::class, 'show']);
+    \Hyperf\HttpServer\Router\Router::addRoute(['PUT', 'PATCH'], '/{id}', [\{{ namespace }}\Controller\{{ model }}Controller::class, 'update']);
+    \Hyperf\HttpServer\Router\Router::delete('/{id}', [\{{ namespace }}\Controller\{{ model }}Controller::class, 'destroy']);
+}, ['middleware' => [
+    \GustavoQueiroz\HyperfCrudGenerator\Http\ValidationMiddleware::class,
+    \Hyperf\Validation\Middleware\ValidationMiddleware::class,
+]]);

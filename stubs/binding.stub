@@ -1,0 +1,7 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    \{{ namespace }}\Contract\{{ model }}RepositoryInterface::class => \{{ namespace }}\Repository\{{ model }}Repository::class,
+];

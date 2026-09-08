@@ -15,7 +15,8 @@ class Store{{ model }}Request extends FormRequest
 
     public function rules(): array
     {
-        // TODO: The schema-aware engine will populate validation rules automatically.
-        return [];
+        return [
+{{ store_rules }}
+        ];
     }
 }

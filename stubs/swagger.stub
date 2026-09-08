@@ -1,0 +1,2 @@
+\Hyperf\HttpServer\Router\Router::get('/docs', [\GustavoQueiroz\HyperfCrudGenerator\Http\DocumentationController::class, 'index']);
+\Hyperf\HttpServer\Router\Router::get('/docs/openapi/{name:[a-z0-9_]+}.json', [\GustavoQueiroz\HyperfCrudGenerator\Http\DocumentationController::class, 'spec']);

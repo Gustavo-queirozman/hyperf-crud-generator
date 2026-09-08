@@ -8,9 +8,17 @@ use Hyperf\DbConnection\Model\Model;
 
 class {{ model }} extends Model
 {
-    protected ?string $table = '{{ table }}';
+    public const CREATED_AT = {{ created_at }};
+    public const UPDATED_AT = {{ updated_at }};
+    public bool $timestamps = {{ timestamps }};
+    public bool $incrementing = {{ incrementing }};
+    protected ?string $connection = {{ connection_literal }};
+    protected ?string $table = {{ table_literal }};
+    protected string $primaryKey = {{ primary_key }};
+    protected string $keyType = {{ key_type }};
+    protected array $fillable = {{ fillable }};
+    protected array $casts = {{ casts }};
+    protected array $hidden = {{ hidden }};
 
-    protected array $fillable = [];
-
-    protected array $casts = [];
+{{ relations }}
 }

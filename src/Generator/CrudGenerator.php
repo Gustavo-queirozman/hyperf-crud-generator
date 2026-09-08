@@ -12,68 +12,139 @@ use InvalidArgumentException;
 final class CrudGenerator
 {
     public const COMPONENTS = [
-        'model',
-        'store_request',
-        'update_request',
-        'repository',
-        'service',
-        'controller',
-        'routes',
-        'openapi',
-        'test',
+        'model', 'dto', 'resource', 'store_request', 'update_request',
+        'repository_interface', 'repository', 'binding', 'service', 'controller',
+        'factory', 'seeder', 'routes', 'openapi', 'swagger', 'test',
     ];
 
-    public function __construct(
-        private readonly StubRenderer $renderer,
-        private readonly FileWriter $writer,
-    ) {
+    private const DEPENDENCIES = [
+        'resource' => ['model'],
+        'repository' => ['model', 'resource', 'repository_interface'],
+        'binding' => ['repository'],
+        'service' => ['dto', 'repository_interface', 'repository', 'binding'],
+        'controller' => ['service', 'resource', 'store_request', 'update_request'],
+        'routes' => ['controller'],
+        'factory' => ['model'],
+        'seeder' => ['factory'],
+        'test' => ['controller'],
+        'swagger' => ['openapi'],
+    ];
+
+    public function __construct(private readonly StubRenderer $renderer, private readonly FileWriter $writer)
+    {
     }
 
     public function generate(GeneratorContext $context, array $components): array
     {
-        $components = array_values(array_unique($components));
+        return $this->generateBatch([$context], $components);
+    }
+
+    /** @param GeneratorContext[] $contexts */
+    public function generateBatch(array $contexts, array $components): array
+    {
+        if ($contexts === []) {
+            throw new InvalidArgumentException('No tables selected.');
+        }
+        $files = $this->plan($contexts, $components);
+        if (! $contexts[0]->dryRun) {
+            foreach ($files as $path => $contents) {
+                $this->writer->write($path, $contents, true);
+            }
+        }
+        return array_keys($files);
+    }
+
+    /** Produces a complete, conflict-checked preview without writing files. */
+    public function plan(array $contexts, array $components): array
+    {
+        $components = $this->resolveComponents($components);
+        $files = $mergedPaths = $models = $resources = [];
+        foreach ($contexts as $context) {
+            if ($context->force !== $contexts[0]->force || $context->dryRun !== $contexts[0]->dryRun) {
+                throw new InvalidArgumentException('All batch contexts must use the same force and dry-run options.');
+            }
+            $modelKey = strtolower($context->namespace . '\\' . $context->model);
+            if (isset($models[$modelKey]) || isset($resources[$context->resource])) {
+                throw new InvalidArgumentException('Model or route collision for table: ' . $context->table . '. Configure model_map or select tables separately.');
+            }
+            $models[$modelKey] = $resources[$context->resource] = true;
+            $variables = (new SchemaVariables())->build($context);
+            foreach ($components as $component) {
+                if (in_array($component, ['routes', 'swagger'], true)) {
+                    $path = $context->routesFile;
+                    $current = $files[$path] ?? $this->writer->read($path, "<?php\n\ndeclare(strict_types=1);\n");
+                    $files[$path] = $this->writer->markedBlock($current,
+                        $component === 'swagger' ? '_swagger' : $context->model,
+                        $this->render($component, $variables), $context->force);
+                    $mergedPaths[] = $path;
+                    continue;
+                }
+                foreach ($this->destinations($component, $context) as $stub => $path) {
+                    if (isset($files[$path])) {
+                        throw new InvalidArgumentException('Duplicate generated file: ' . $path);
+                    }
+                    $files[$path] = $component === 'openapi'
+                        ? json_encode((new OpenApiGenerator())->document($context), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n"
+                        : $this->render($stub, $variables);
+                }
+            }
+        }
+        $this->writer->preflight($files, $contexts[0]->force ?? false, array_unique($mergedPaths));
+        return $files;
+    }
+
+    public function resolveComponents(array $components): array
+    {
         $unknown = array_diff($components, self::COMPONENTS);
         if ($unknown !== []) {
             throw new InvalidArgumentException('Unknown components: ' . implode(', ', $unknown));
         }
-
-        $created = [];
+        if ($components === []) {
+            throw new InvalidArgumentException('Select at least one component.');
+        }
+        $resolved = [];
+        $visit = function (string $component) use (&$visit, &$resolved): void {
+            foreach (self::DEPENDENCIES[$component] ?? [] as $dependency) {
+                if (! isset($resolved[$dependency])) {
+                    $visit($dependency);
+                }
+            }
+            $resolved[$component] = true;
+        };
         foreach ($components as $component) {
-            $path = $this->generateComponent($component, $context);
-            $created[] = $path;
+            $visit($component);
         }
-
-        return $created;
+        return array_keys($resolved);
     }
 
-    private function generateComponent(string $component, GeneratorContext $context): string
+    private function destinations(string $component, GeneratorContext $c): array
     {
-        $map = [
-            'model' => ['model.stub', $context->basePath . '/Model/' . $context->model . '.php'],
-            'store_request' => ['store_request.stub', $context->basePath . '/Request/' . $context->model . '/Store' . $context->model . 'Request.php'],
-            'update_request' => ['update_request.stub', $context->basePath . '/Request/' . $context->model . '/Update' . $context->model . 'Request.php'],
-            'repository' => ['repository.stub', $context->basePath . '/Repository/' . $context->model . 'Repository.php'],
-            'service' => ['service.stub', $context->basePath . '/Service/' . $context->model . 'Service.php'],
-            'controller' => ['controller.stub', $context->basePath . '/Controller/' . $context->model . 'Controller.php'],
-            'openapi' => ['openapi.stub', rtrim($context->openApiPath, '/') . '/' . Name::snake($context->model) . '.yaml'],
-            'test' => ['test.stub', rtrim($context->testPath, '/') . '/' . $context->model . 'ControllerTest.php'],
-        ];
-
-        if ($component === 'routes') {
-            $contents = $this->renderer->render($this->stubPath('routes.stub'), $context->variables());
-            $this->writer->upsertMarkedBlock($context->routesFile, $context->model, $contents);
-            return $context->routesFile . ' [route block]';
-        }
-
-        [$stub, $path] = $map[$component];
-        $contents = $this->renderer->render($this->stubPath($stub), $context->variables());
-        $this->writer->write($path, $contents, $context->force);
-
-        return $path;
+        $base = rtrim($c->basePath, '/\\');
+        $model = $c->model;
+        return match ($component) {
+            'model' => ['model' => "$base/Model/$model.php"],
+            'dto' => ['dto' => "$base/DTO/{$model}Data.php"],
+            'resource' => ['resource' => "$base/Resource/{$model}Resource.php"],
+            'store_request' => ['store_request' => "$base/Request/$model/Store{$model}Request.php"],
+            'update_request' => ['update_request' => "$base/Request/$model/Update{$model}Request.php"],
+            'repository_interface' => ['repository_interface' => "$base/Contract/{$model}RepositoryInterface.php"],
+            'repository' => ['repository' => "$base/Repository/{$model}Repository.php"],
+            'binding' => ['binding' => ($c->bindingPath ?? dirname($c->routesFile) . '/crud-generator') . "/$model.php"],
+            'service' => ['service' => "$base/Service/{$model}Service.php"],
+            'controller' => ['controller' => "$base/Controller/{$model}Controller.php"],
+            'factory' => ['factory' => "$base/Factory/{$model}Factory.php"],
+            'seeder' => ['seeder' => "$base/Seeder/{$model}Seeder.php"],
+            'openapi' => ['openapi' => rtrim($c->openApiPath, '/\\') . '/' . Name::snake($model) . '.json'],
+            'test' => [
+                'test' => rtrim($c->testPath, '/\\') . "/{$model}ControllerTest.php",
+                'service_test' => rtrim($c->testPath, '/\\') . "/{$model}ServiceTest.php",
+            ],
+            default => throw new InvalidArgumentException('Unknown component: ' . $component),
+        };
     }
 
-    private function stubPath(string $stub): string
+    private function render(string $stub, array $variables): string
     {
-        return dirname(__DIR__, 2) . '/stubs/' . $stub;
+        return $this->renderer->render(dirname(__DIR__, 2) . '/stubs/' . $stub . '.stub', $variables);
     }
 }

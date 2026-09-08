@@ -4,14 +4,46 @@ declare(strict_types=1);
 
 namespace {{ namespace }}\Repository;
 
+use {{ namespace }}\Contract\{{ model }}RepositoryInterface;
 use {{ namespace }}\Model\{{ model }};
-use Hyperf\Database\Model\Collection;
+use {{ namespace }}\Resource\{{ model }}Resource;
+use Hyperf\Database\Model\Builder;
 
-class {{ model }}Repository
+class {{ model }}Repository implements {{ model }}RepositoryInterface
 {
-    public function all(): Collection
+    public function paginate(int $page, int $perPage, string $sort, string $direction, array $filters = [], ?string $search = null): array
     {
-        return {{ model }}::query()->get();
+        $allowed = {{ sortable }};
+        $sort = in_array($sort, $allowed, true) ? $sort : {{ primary_key }};
+        $direction = strtolower($direction) === 'desc' ? 'desc' : 'asc';
+        $query = {{ model }}::query();
+        foreach ($filters as $column => $value) {
+            if (in_array($column, $allowed, true) && (is_scalar($value) || $value === null)) {
+                $query->where($column, $value);
+            }
+        }
+        $searchable = {{ searchable }};
+        if ($search !== null && $search !== '' && $searchable !== []) {
+            $query->where(function (Builder $nested) use ($search, $searchable): void {
+                foreach ($searchable as $column) {
+                    $nested->orWhere($column, 'like', '%' . $search . '%');
+                }
+            });
+        }
+        $query->orderBy($sort, $direction);
+        if ($sort !== {{ primary_key }}) {
+            $query->orderBy({{ primary_key }});
+        }
+        $result = $query->paginate(max(1, min(100, $perPage)), ['*'], 'page', max(1, $page));
+        return [
+            'data' => array_map(static fn ({{ model }} $model) => {{ model }}Resource::make($model), $result->items()),
+            'meta' => [
+                'current_page' => $result->currentPage(),
+                'per_page' => $result->perPage(),
+                'total' => $result->total(),
+                'last_page' => $result->lastPage(),
+            ],
+        ];
     }
 
     public function findOrFail(int|string $id): {{ model }}
@@ -21,19 +53,19 @@ class {{ model }}Repository
 
     public function create(array $data): {{ model }}
     {
-        return {{ model }}::query()->create($data);
+        $model = {{ model }}::query()->create($data);
+        return $model->refresh();
     }
 
     public function update({{ model }} $model, array $data): {{ model }}
     {
         $model->fill($data);
         $model->save();
-
         return $model->refresh();
     }
 
-    public function delete({{ model }} $model): bool
+    public function delete({{ model }} $model): void
     {
-        return (bool) $model->delete();
+        $model->delete();
     }
 }

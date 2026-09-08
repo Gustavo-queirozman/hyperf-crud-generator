@@ -4,19 +4,19 @@ declare(strict_types=1);
 
 namespace {{ namespace }}\Service;
 
+use {{ namespace }}\Contract\{{ model }}RepositoryInterface;
+use {{ namespace }}\DTO\{{ model }}Data;
 use {{ namespace }}\Model\{{ model }};
-use {{ namespace }}\Repository\{{ model }}Repository;
-use Hyperf\Database\Model\Collection;
 
 class {{ model }}Service
 {
-    public function __construct(private readonly {{ model }}Repository $repository)
+    public function __construct(private readonly {{ model }}RepositoryInterface $repository)
     {
     }
 
-    public function list(): Collection
+    public function list(int $page = 1, int $perPage = 15, string $sort = {{ primary_key }}, string $direction = 'asc', array $filters = [], ?string $search = null): array
     {
-        return $this->repository->all();
+        return $this->repository->paginate($page, $perPage, $sort, $direction, $filters, $search);
     }
 
     public function get(int|string $id): {{ model }}
@@ -24,18 +24,18 @@ class {{ model }}Service
         return $this->repository->findOrFail($id);
     }
 
-    public function create(array $data): {{ model }}
+    public function create({{ model }}Data $data): {{ model }}
     {
-        return $this->repository->create($data);
+        return $this->repository->create($data->toArray());
     }
 
-    public function update(int|string $id, array $data): {{ model }}
+    public function update(int|string $id, {{ model }}Data $data): {{ model }}
     {
-        return $this->repository->update($this->get($id), $data);
+        return $this->repository->update($this->get($id), $data->toArray());
     }
 
-    public function delete(int|string $id): bool
+    public function delete(int|string $id): void
     {
-        return $this->repository->delete($this->get($id));
+        $this->repository->delete($this->get($id));
     }
 }

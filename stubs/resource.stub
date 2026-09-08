@@ -1,0 +1,15 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }}\Resource;
+
+use {{ namespace }}\Model\{{ model }};
+
+final class {{ model }}Resource
+{
+    public static function make({{ model }} $model): array
+    {
+        return array_intersect_key($model->toArray(), array_flip({{ visible }}));
+    }
+}

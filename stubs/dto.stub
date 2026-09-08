@@ -1,0 +1,23 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }}\DTO;
+
+final readonly class {{ model }}Data
+{
+    private function __construct(private array $attributes)
+    {
+    }
+
+    public static function fromArray(array $data, bool $update = false): self
+    {
+        $allowed = $update ? {{ update_fields }} : {{ fillable }};
+        return new self(array_intersect_key($data, array_flip($allowed)));
+    }
+
+    public function toArray(): array
+    {
+        return $this->attributes;
+    }
+}

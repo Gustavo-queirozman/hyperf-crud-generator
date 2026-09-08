@@ -1,0 +1,65 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ test_namespace }};
+
+use {{ namespace }}\Contract\{{ model }}RepositoryInterface;
+use {{ namespace }}\DTO\{{ model }}Data;
+use {{ namespace }}\Model\{{ model }};
+use {{ namespace }}\Service\{{ model }}Service;
+use Hyperf\Database\Model\ModelNotFoundException;
+use PHPUnit\Framework\TestCase;
+
+final class {{ model }}ServiceTest extends TestCase
+{
+    public function testCreateDelegatesOnlyWritableAttributes(): void
+    {
+        $input = {{ example_payload }};
+        $input['__unexpected'] = 'discard';
+        $data = {{ model }}Data::fromArray($input);
+        self::assertArrayNotHasKey('__unexpected', $data->toArray());
+        $model = $this->getMockBuilder({{ model }}::class)->disableOriginalConstructor()->getMock();
+        $repository = $this->createMock({{ model }}RepositoryInterface::class);
+        $repository->expects(self::once())->method('create')->with($data->toArray())->willReturn($model);
+        self::assertSame($model, (new {{ model }}Service($repository))->create($data));
+    }
+
+    public function testUpdateKeepsPrimaryKeyImmutable(): void
+    {
+        $data = {{ model }}Data::fromArray([{{ primary_key }} => {{ test_id }}] + {{ example_payload }}, true);
+        self::assertArrayNotHasKey({{ primary_key }}, $data->toArray());
+        $model = $this->getMockBuilder({{ model }}::class)->disableOriginalConstructor()->getMock();
+        $repository = $this->createMock({{ model }}RepositoryInterface::class);
+        $repository->expects(self::once())->method('findOrFail')->with({{ test_id }})->willReturn($model);
+        $repository->expects(self::once())->method('update')->with($model, $data->toArray())->willReturn($model);
+        self::assertSame($model, (new {{ model }}Service($repository))->update({{ test_id }}, $data));
+    }
+
+    public function testDeleteLoadsAndDeletesTheResource(): void
+    {
+        $model = $this->getMockBuilder({{ model }}::class)->disableOriginalConstructor()->getMock();
+        $repository = $this->createMock({{ model }}RepositoryInterface::class);
+        $repository->expects(self::once())->method('findOrFail')->with({{ test_id }})->willReturn($model);
+        $repository->expects(self::once())->method('delete')->with($model);
+        (new {{ model }}Service($repository))->delete({{ test_id }});
+    }
+
+    public function testMissingResourcePropagates(): void
+    {
+        $repository = $this->createMock({{ model }}RepositoryInterface::class);
+        $repository->method('findOrFail')->willThrowException(new ModelNotFoundException());
+        $this->expectException(ModelNotFoundException::class);
+        (new {{ model }}Service($repository))->get({{ test_id }});
+    }
+
+    public function testListPassesPaginationAndFilters(): void
+    {
+        $repository = $this->createMock({{ model }}RepositoryInterface::class);
+        $repository->expects(self::once())->method('paginate')
+            ->with(2, 10, {{ primary_key }}, 'desc', [], 'example')->willReturn(['data' => [], 'meta' => ['total' => 0]]);
+        $result = (new {{ model }}Service($repository))->list(2, 10, {{ primary_key }}, 'desc', [], 'example');
+        self::assertSame([], $result['data']);
+        self::assertSame(0, $result['meta']['total']);
+    }
+}
