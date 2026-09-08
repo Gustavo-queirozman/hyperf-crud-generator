@@ -1,0 +1,16 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }}\Model;
+
+use Hyperf\DbConnection\Model\Model;
+
+class {{ model }} extends Model
+{
+    protected ?string $table = '{{ table }}';
+
+    protected array $fillable = [];
+
+    protected array $casts = [];
+}

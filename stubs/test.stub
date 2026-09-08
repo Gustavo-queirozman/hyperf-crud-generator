@@ -1,0 +1,15 @@
+<?php
+
+declare(strict_types=1);
+
+namespace HyperfTest\Cases;
+
+use PHPUnit\Framework\TestCase;
+
+class {{ model }}ControllerTest extends TestCase
+{
+    public function testCrudPlaceholder(): void
+    {
+        $this->markTestIncomplete('Connect this test to your Hyperf HTTP test client/database fixtures.');
+    }
+}

@@ -1,0 +1,46 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }}\Controller;
+
+use {{ namespace }}\Request\{{ model }}\Store{{ model }}Request;
+use {{ namespace }}\Request\{{ model }}\Update{{ model }}Request;
+use {{ namespace }}\Service\{{ model }}Service;
+use Hyperf\HttpServer\Contract\ResponseInterface;
+use Psr\Http\Message\ResponseInterface as PsrResponseInterface;
+
+class {{ model }}Controller
+{
+    public function __construct(
+        private readonly {{ model }}Service $service,
+        private readonly ResponseInterface $response,
+    ) {
+    }
+
+    public function index(): PsrResponseInterface
+    {
+        return $this->response->json($this->service->list());
+    }
+
+    public function show(int $id): PsrResponseInterface
+    {
+        return $this->response->json($this->service->get($id));
+    }
+
+    public function store(Store{{ model }}Request $request): PsrResponseInterface
+    {
+        return $this->response->json($this->service->create($request->validated()))->withStatus(201);
+    }
+
+    public function update(int $id, Update{{ model }}Request $request): PsrResponseInterface
+    {
+        return $this->response->json($this->service->update($id, $request->validated()));
+    }
+
+    public function destroy(int $id): PsrResponseInterface
+    {
+        $this->service->delete($id);
+        return $this->response->json(['deleted' => true]);
+    }
+}

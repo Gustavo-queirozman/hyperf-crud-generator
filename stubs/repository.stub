@@ -1,0 +1,39 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }}\Repository;
+
+use {{ namespace }}\Model\{{ model }};
+use Hyperf\Database\Model\Collection;
+
+class {{ model }}Repository
+{
+    public function all(): Collection
+    {
+        return {{ model }}::query()->get();
+    }
+
+    public function findOrFail(int|string $id): {{ model }}
+    {
+        return {{ model }}::query()->findOrFail($id);
+    }
+
+    public function create(array $data): {{ model }}
+    {
+        return {{ model }}::query()->create($data);
+    }
+
+    public function update({{ model }} $model, array $data): {{ model }}
+    {
+        $model->fill($data);
+        $model->save();
+
+        return $model->refresh();
+    }
+
+    public function delete({{ model }} $model): bool
+    {
+        return (bool) $model->delete();
+    }
+}
