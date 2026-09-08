@@ -1,0 +1,41 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }}\Service;
+
+use {{ namespace }}\Model\{{ model }};
+use {{ namespace }}\Repository\{{ model }}Repository;
+use Hyperf\Database\Model\Collection;
+
+class {{ model }}Service
+{
+    public function __construct(private readonly {{ model }}Repository $repository)
+    {
+    }
+
+    public function list(): Collection
+    {
+        return $this->repository->all();
+    }
+
+    public function get(int|string $id): {{ model }}
+    {
+        return $this->repository->findOrFail($id);
+    }
+
+    public function create(array $data): {{ model }}
+    {
+        return $this->repository->create($data);
+    }
+
+    public function update(int|string $id, array $data): {{ model }}
+    {
+        return $this->repository->update($this->get($id), $data);
+    }
+
+    public function delete(int|string $id): bool
+    {
+        return $this->repository->delete($this->get($id));
+    }
+}

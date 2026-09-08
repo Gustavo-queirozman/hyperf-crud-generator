@@ -1,0 +1,38 @@
+openapi: 3.0.3
+info:
+  title: {{ model }} CRUD
+  version: 1.0.0
+paths:
+  /{{ resource }}:
+    get:
+      summary: List {{ resource }}
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Create {{ model }}
+      responses:
+        '201':
+          description: Created
+  /{{ resource }}/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+    get:
+      summary: Get {{ model }}
+      responses:
+        '200':
+          description: OK
+    put:
+      summary: Update {{ model }}
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Delete {{ model }}
+      responses:
+        '200':
+          description: Deleted

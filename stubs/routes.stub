@@ -1,0 +1,7 @@
+\Hyperf\HttpServer\Router\Router::addGroup('/{{ resource }}', function (): void {
+    \Hyperf\HttpServer\Router\Router::get('', [\{{ namespace }}\Controller\{{ model }}Controller::class, 'index']);
+    \Hyperf\HttpServer\Router\Router::get('/{id:\\d+}', [\{{ namespace }}\Controller\{{ model }}Controller::class, 'show']);
+    \Hyperf\HttpServer\Router\Router::post('', [\{{ namespace }}\Controller\{{ model }}Controller::class, 'store']);
+    \Hyperf\HttpServer\Router\Router::put('/{id:\\d+}', [\{{ namespace }}\Controller\{{ model }}Controller::class, 'update']);
+    \Hyperf\HttpServer\Router\Router::delete('/{id:\\d+}', [\{{ namespace }}\Controller\{{ model }}Controller::class, 'destroy']);
+});

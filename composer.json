@@ -1,0 +1,30 @@
+{
+  "name": "gustavoqueiroz/hyperf-crud-generator",
+  "description": "Extensible CRUD generator for Hyperf applications.",
+  "type": "library",
+  "license": "MIT",
+  "keywords": ["hyperf", "crud", "generator", "scaffold", "api"],
+  "require": {
+    "php": ">=8.1",
+    "hyperf/command": "^3.1 || ^3.2",
+    "hyperf/contract": "^3.1 || ^3.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "GustavoQueiroz\\HyperfCrudGenerator\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "GustavoQueiroz\\HyperfCrudGeneratorTest\\": "tests/"
+    }
+  },
+  "extra": {
+    "hyperf": {
+      "config": "GustavoQueiroz\\HyperfCrudGenerator\\ConfigProvider"
+    }
+  },
+  "config": {
+    "sort-packages": true
+  }
+}

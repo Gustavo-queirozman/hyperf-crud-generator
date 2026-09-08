@@ -1,0 +1,21 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }}\Request\{{ model }};
+
+use Hyperf\Validation\Request\FormRequest;
+
+class Store{{ model }}Request extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    public function rules(): array
+    {
+        // TODO: The schema-aware engine will populate validation rules automatically.
+        return [];
+    }
+}
