@@ -21,7 +21,8 @@ final class OpenApiGenerator
             $properties = $required = [];
             foreach ($columns as $column) {
                 $properties[$column->name] = $this->property($column);
-                if ($mode === 'Store' && ! $column->nullable && $column->default === null) {
+                if ($mode === 'Store' && ((! $column->nullable && $column->default === null)
+                    || (in_array($column->name, $table->primaryKey, true) && $column->kind() !== 'uuid'))) {
                     $required[] = $column->name;
                 }
                 if ($mode === 'Response' && ($column->identity || $column->generated || in_array($column->name, ['created_at', 'updated_at', 'deleted_at'], true))) {
@@ -44,6 +45,7 @@ final class OpenApiGenerator
             'errors' => ['type' => 'object', 'additionalProperties' => ['type' => 'array', 'items' => ['type' => 'string']]],
         ], 'required' => ['message']];
         $errors = [
+            '403' => ['description' => 'Forbidden by the configured authorization policy', 'content' => $json($error)],
             '404' => ['description' => 'Resource not found', 'content' => $json($error)],
             '409' => ['description' => 'Database constraint conflict', 'content' => $json($error)],
             '422' => ['description' => 'Validation failed', 'content' => $json($error)],
@@ -73,11 +75,12 @@ final class OpenApiGenerator
                     )],
                 ], 'required' => ['data', 'meta']]),
                 '422' => $errors['422'],
+                '403' => $errors['403'],
             ],
         ];
         $store = $operation('create') + [
             'requestBody' => ['required' => true, 'content' => $json($ref($model . 'Store'))],
-            'responses' => ['201' => $success($item, 'Created'), '409' => $errors['409'], '422' => $errors['422']],
+            'responses' => ['201' => $success($item, 'Created'), '403' => $errors['403'], '409' => $errors['409'], '422' => $errors['422']],
         ];
         $update = $operation('update') + [
             'description' => 'Updates only supplied writable fields. Primary key and generated columns are immutable.',
@@ -94,11 +97,11 @@ final class OpenApiGenerator
                 '/' . $context->resource => ['get' => $list, 'post' => $store],
                 '/' . $context->resource . '/{id}' => [
                     'parameters' => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => $id]],
-                    'get' => $operation('show') + ['responses' => ['200' => $success($item), '404' => $errors['404']]],
+                    'get' => $operation('show') + ['responses' => ['200' => $success($item), '403' => $errors['403'], '404' => $errors['404']]],
                     'put' => $update,
                     'patch' => array_replace($update, ['operationId' => lcfirst($model) . 'Patch']),
                     'delete' => $operation('delete') + ['responses' => [
-                        '204' => ['description' => 'Deleted'], '404' => $errors['404'], '409' => $errors['409'],
+                        '204' => ['description' => 'Deleted'], '403' => $errors['403'], '404' => $errors['404'], '409' => $errors['409'],
                     ]],
                 ],
             ],

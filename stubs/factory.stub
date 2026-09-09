@@ -23,7 +23,9 @@ final class {{ model }}Factory
 
     public static function create(array $overrides = []): {{ model }}
     {
-        return {{ model }}::query()->create(self::definition($overrides))->refresh();
+        $data = self::definition($overrides);
+{{ assign_key }}
+        return {{ model }}::query()->create($data)->refresh();
     }
 
     private static function uuid(): string

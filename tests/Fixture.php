@@ -30,11 +30,11 @@ final class Fixture
         ]);
     }
 
-    public static function context(string $root, ?Table $table = null, bool $force = false, bool $dryRun = false, string $model = 'User'): GeneratorContext
+    public static function context(string $root, ?Table $table = null, bool $force = false, bool $dryRun = false, string $model = 'User', bool $regenerate = false): GeneratorContext
     {
         $table ??= self::table();
         return new GeneratorContext($model, $table->schema . '.' . $table->name, 'GeneratedApp', "$root/app",
             "$root/config/routes.php", "$root/docs/openapi", "$root/test/Cases", $force,
-            $table, 'reporting', $dryRun, ['public.teams' => 'Team'], 'GeneratedTest');
+            $table, 'reporting', $dryRun, ['public.teams' => 'Team'], 'GeneratedTest', regenerate: $regenerate);
     }
 }

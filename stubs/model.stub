@@ -8,6 +8,8 @@ use Hyperf\DbConnection\Model\Model;
 
 class {{ model }} extends Model
 {
+    use \GustavoQueiroz\HyperfCrudGenerator\Support\SqlServerIdentity;
+{{ soft_deletes }}
     public const CREATED_AT = {{ created_at }};
     public const UPDATED_AT = {{ updated_at }};
     public bool $timestamps = {{ timestamps }};
@@ -21,4 +23,7 @@ class {{ model }} extends Model
     protected array $hidden = {{ hidden }};
 
 {{ relations }}
+
+    // <crud-custom>
+    // </crud-custom>
 }

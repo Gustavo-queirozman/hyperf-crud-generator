@@ -1,0 +1,30 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }}\Policy;
+
+use GustavoQueiroz\HyperfCrudGenerator\Authorization\AuthorizationException;
+use GustavoQueiroz\HyperfCrudGenerator\Authorization\AuthorizationInterface;
+
+class {{ model }}Policy
+{
+    public function __construct(private readonly AuthorizationInterface $authorization)
+    {
+    }
+
+    public function allows(string $ability, mixed $subject = null): bool
+    {
+        return $this->authorization->allows('{{ model }}', $ability, $subject);
+    }
+
+    public function authorize(string $ability, mixed $subject = null): void
+    {
+        if (! $this->allows($ability, $subject)) {
+            throw new AuthorizationException();
+        }
+    }
+
+    // <crud-custom>
+    // </crud-custom>
+}

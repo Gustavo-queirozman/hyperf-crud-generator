@@ -9,6 +9,8 @@ use {{ namespace }}\Request\{{ model }}\Store{{ model }}Request;
 use {{ namespace }}\Request\{{ model }}\Update{{ model }}Request;
 use {{ namespace }}\Resource\{{ model }}Resource;
 use {{ namespace }}\Service\{{ model }}Service;
+use {{ namespace }}\Policy\{{ model }}Policy;
+use GustavoQueiroz\HyperfCrudGenerator\Authorization\AuthorizationException;
 use Hyperf\Contract\ValidatorInterface;
 use Hyperf\Database\Exception\QueryException;
 use Hyperf\Database\Model\ModelNotFoundException;
@@ -24,17 +26,22 @@ class {{ model }}Controller
         private readonly {{ model }}Service $service,
         private readonly ResponseInterface $response,
         private readonly ValidatorFactoryInterface $validators,
+        private readonly {{ model }}Policy $policy,
     ) {
     }
 
     public function index(RequestInterface $request): PsrResponseInterface
     {
+        if (! $this->policy->allows('viewAny')) {
+            return $this->response->json(['message' => 'Forbidden'])->withStatus(403);
+        }
         $validator = $this->validators->make($request->query(), [
             'page' => ['sometimes', 'integer', 'min:1'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
             'sort' => ['sometimes', \Hyperf\Validation\Rule::in({{ sortable }})],
             'direction' => ['sometimes', 'in:asc,desc'],
-            'filter' => ['sometimes', 'array'],
+            'filter' => ['sometimes', {{ filter_keys }}],
+{{ filter_rules }}
             'search' => ['sometimes', 'string', 'max:255'],
         ]);
         if ($validator->fails()) {
@@ -50,26 +57,37 @@ class {{ model }}Controller
 
     public function show(string $id): PsrResponseInterface
     {
-        return $this->execute(fn () => ['data' => {{ model }}Resource::make($this->service->get($id))]);
+        return $this->execute(function () use ($id): array {
+            $model = $this->service->get($id);
+            $this->policy->authorize('view', $model);
+            return ['data' => {{ model }}Resource::make($model)];
+        });
     }
 
     public function store(Store{{ model }}Request $request): PsrResponseInterface
     {
-        return $this->execute(fn () => ['data' => {{ model }}Resource::make(
-            $this->service->create({{ model }}Data::fromArray($request->validated()))
-        )], 201);
+        return $this->execute(function () use ($request): array {
+            $this->policy->authorize('create');
+            return ['data' => {{ model }}Resource::make(
+                $this->service->create({{ model }}Data::fromArray($request->validated()))
+            )];
+        }, 201);
     }
 
     public function update(string $id, Update{{ model }}Request $request): PsrResponseInterface
     {
-        return $this->execute(fn () => ['data' => {{ model }}Resource::make(
-            $this->service->update($id, {{ model }}Data::fromArray($request->validated(), true))
-        )]);
+        return $this->execute(function () use ($id, $request): array {
+            $this->policy->authorize('update', $this->service->get($id));
+            return ['data' => {{ model }}Resource::make(
+                $this->service->update($id, {{ model }}Data::fromArray($request->validated(), true))
+            )];
+        });
     }
 
     public function destroy(string $id): PsrResponseInterface
     {
         return $this->execute(function () use ($id): array {
+            $this->policy->authorize('delete', $this->service->get($id));
             $this->service->delete($id);
             return [];
         }, 204);
@@ -82,6 +100,8 @@ class {{ model }}Controller
             return $status === 204
                 ? $this->response->raw('')->withStatus(204)
                 : $this->response->json($data)->withStatus($status);
+        } catch (AuthorizationException) {
+            return $this->response->json(['message' => 'Forbidden'])->withStatus(403);
         } catch (ModelNotFoundException) {
             return $this->response->json(['message' => 'Resource not found'])->withStatus(404);
         } catch (ValidationException $e) {
@@ -101,4 +121,7 @@ class {{ model }}Controller
             'message' => 'Validation failed', 'errors' => $validator->errors()->messages(),
         ])->withStatus(422);
     }
+
+    // <crud-custom>
+    // </crud-custom>
 }

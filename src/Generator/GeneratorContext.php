@@ -31,6 +31,8 @@ final readonly class GeneratorContext
         public array $hidden = ['password', 'password_hash', 'remember_token', 'api_token', 'secret'],
         public ?string $bindingPath = null,
         public array $relatedTables = [],
+        public bool $regenerate = false,
+        public ?string $stubPath = null,
     ) {
         foreach ([$namespace, $testNamespace] as $value) {
             if (! preg_match('/^[A-Za-z_][A-Za-z0-9_]*(\\\\[A-Za-z_][A-Za-z0-9_]*)*$/D', $value)) {

@@ -39,7 +39,7 @@ final class GeneratorTest extends TestCase
     {
         $context = Fixture::context($this->root);
         $paths = $this->generator->generate($context, CrudGenerator::COMPONENTS);
-        self::assertCount(16, $paths);
+        self::assertCount(19, $paths);
         foreach ($paths as $path) {
             self::assertFileExists($path);
             $contents = file_get_contents($path);
@@ -126,6 +126,37 @@ final class GeneratorTest extends TestCase
         $components = $this->generator->resolveComponents(['controller']);
         foreach (['dto', 'model', 'resource', 'repository_interface', 'binding', 'repository', 'service', 'store_request', 'update_request'] as $component) {
             self::assertContains($component, $components);
+        }
+    }
+
+    public function testRegenerationPreservesCustomSectionsAndAddsColumns(): void
+    {
+        $this->generator->generate(Fixture::context($this->root), ['model']);
+        $path = $this->root . '/app/Model/User.php';
+        $contents = file_get_contents($path);
+        $contents = str_replace('    // </crud-custom>', "    public function customValue(): string { return 'kept'; }\n    // </crud-custom>", $contents);
+        file_put_contents($path, $contents);
+        $table = Fixture::table();
+        $changed = new Table($table->name, $table->schema, [...$table->columns, new Column('nickname', 'varchar', nullable: true)], $table->primaryKey);
+        $this->generator->generate(Fixture::context($this->root, $changed, regenerate: true), ['model']);
+        $result = file_get_contents($path);
+        self::assertStringContainsString('customValue()', $result);
+        self::assertStringContainsString("'nickname'", $result);
+        $manifest = json_decode(file_get_contents($this->root . '/config/crud-generator/manifest.json'), true);
+        self::assertArrayHasKey('app/Model/User.php', $manifest['files']);
+    }
+
+    public function testRegenerationRejectsChangesOutsideCustomSections(): void
+    {
+        $this->generator->generate(Fixture::context($this->root), ['model']);
+        $path = $this->root . '/app/Model/User.php';
+        $contents = str_replace("protected ?string \$connection = 'reporting';", "protected ?string \$connection = 'custom';", file_get_contents($path));
+        file_put_contents($path, $contents);
+        $this->expectExceptionMessage('--force');
+        try {
+            $this->generator->generate(Fixture::context($this->root, regenerate: true), ['model']);
+        } finally {
+            self::assertSame($contents, file_get_contents($path));
         }
     }
 }

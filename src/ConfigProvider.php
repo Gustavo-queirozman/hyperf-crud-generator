@@ -15,6 +15,8 @@ final class ConfigProvider
         $configFile = BASE_PATH . '/config/autoload/crud_generator.php';
         $config = is_file($configFile) ? require $configFile : [];
         $dependencies = [QueryExecutor::class => HyperfQueryExecutor::class];
+        $dependencies[\GustavoQueiroz\HyperfCrudGenerator\Authorization\AuthorizationInterface::class]
+            = \GustavoQueiroz\HyperfCrudGenerator\Authorization\ConfigAuthorization::class;
         foreach (glob(($config['binding_path'] ?? BASE_PATH . '/config/crud-generator') . '/*.php') ?: [] as $file) {
             $dependencies = array_replace($dependencies, require $file);
         }
@@ -22,6 +24,8 @@ final class ConfigProvider
             'dependencies' => $dependencies,
             'commands' => [
                 GenerateCrudCommand::class,
+                \GustavoQueiroz\HyperfCrudGenerator\Command\GenerateTableCommand::class,
+                \GustavoQueiroz\HyperfCrudGenerator\Command\GenerateDatabaseCommand::class,
             ],
             'publish' => [
                 [

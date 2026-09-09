@@ -20,10 +20,10 @@ class ComposerStaticInit9cd938782a8f8598e54f179047044b67
         '6e3fae29631ef280660b3cdad06f25a8' => __DIR__ . '/..' . '/symfony/deprecation-contracts/function.php',
         '320cde22f66dd4f5d3fd621d3e88b98f' => __DIR__ . '/..' . '/symfony/polyfill-ctype/bootstrap.php',
         '3ef245790d3389cf1f32f98f11abff00' => __DIR__ . '/..' . '/hyperf/coordinator/src/Functions.php',
-        'e69f7f6ee287b969198c3c9d6777bd38' => __DIR__ . '/..' . '/symfony/polyfill-intl-normalizer/bootstrap.php',
-        'a4a119a56e50fbb293281d9a48007e0e' => __DIR__ . '/..' . '/symfony/polyfill-php80/bootstrap.php',
         '2203a247e6fda86070a5e4e07aed533a' => __DIR__ . '/..' . '/symfony/clock/Resources/now.php',
+        'e69f7f6ee287b969198c3c9d6777bd38' => __DIR__ . '/..' . '/symfony/polyfill-intl-normalizer/bootstrap.php',
         'a1105708a18b76903365ca1c4aa61b02' => __DIR__ . '/..' . '/symfony/translation/Resources/functions.php',
+        'a4a119a56e50fbb293281d9a48007e0e' => __DIR__ . '/..' . '/symfony/polyfill-php80/bootstrap.php',
         '8825ede83f2f289127722d4e842cf7e8' => __DIR__ . '/..' . '/symfony/polyfill-intl-grapheme/bootstrap.php',
         'b6b991a57620e2fb6b2f66f03fe9ddc2' => __DIR__ . '/..' . '/symfony/string/Resources/functions.php',
         'f598d06aa772fa33d905e87be6398fb1' => __DIR__ . '/..' . '/symfony/polyfill-intl-idn/bootstrap.php',
@@ -93,6 +93,8 @@ class ComposerStaticInit9cd938782a8f8598e54f179047044b67
             'Hyperf\\Dispatcher\\' => 18,
             'Hyperf\\Di\\' => 10,
             'Hyperf\\DbConnection\\' => 20,
+            'Hyperf\\Database\\Sqlsrv\\' => 23,
+            'Hyperf\\Database\\PgSQL\\' => 22,
             'Hyperf\\Database\\' => 16,
             'Hyperf\\Coroutine\\' => 17,
             'Hyperf\\Coordinator\\' => 19,
@@ -341,6 +343,14 @@ class ComposerStaticInit9cd938782a8f8598e54f179047044b67
         'Hyperf\\DbConnection\\' => 
         array (
             0 => __DIR__ . '/..' . '/hyperf/db-connection/src',
+        ),
+        'Hyperf\\Database\\Sqlsrv\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/hyperf/database-sqlserver/src',
+        ),
+        'Hyperf\\Database\\PgSQL\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/hyperf/database-pgsql/src',
         ),
         'Hyperf\\Database\\' => 
         array (

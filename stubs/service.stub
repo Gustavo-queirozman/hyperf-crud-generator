@@ -38,4 +38,7 @@ class {{ model }}Service
     {
         $this->repository->delete($this->get($id));
     }
+
+    // <crud-custom>
+    // </crud-custom>
 }

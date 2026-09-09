@@ -15,8 +15,14 @@
     "doctrine/inflector": "^2.0"
   },
   "require-dev": {
+    "hyperf/database-pgsql": "^3.1 || ^3.2",
+    "hyperf/database-sqlserver": "~3.2.0@RC",
     "phpunit/phpunit": "^10.5",
     "symfony/yaml": "^6.4 || ^7.0"
+  },
+  "suggest": {
+    "hyperf/database-pgsql": "Required in the target Hyperf application for PostgreSQL connections.",
+    "hyperf/database-sqlserver": "SQL Server driver for Hyperf 3.2; select a version compatible with your Hyperf installation."
   },
   "scripts": {
     "test": "phpunit",

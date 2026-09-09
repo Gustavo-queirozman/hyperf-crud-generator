@@ -53,6 +53,7 @@ class {{ model }}Repository implements {{ model }}RepositoryInterface
 
     public function create(array $data): {{ model }}
     {
+{{ assign_key }}
         $model = {{ model }}::query()->create($data);
         return $model->refresh();
     }
@@ -68,4 +69,7 @@ class {{ model }}Repository implements {{ model }}RepositoryInterface
     {
         $model->delete();
     }
+
+    // <crud-custom>
+    // </crud-custom>
 }

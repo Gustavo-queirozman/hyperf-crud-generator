@@ -1,0 +1,46 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ test_namespace }};
+
+use {{ namespace }}\Factory\{{ model }}Factory;
+use {{ namespace }}\Model\{{ model }};
+use {{ namespace }}\Repository\{{ model }}Repository;
+use Hyperf\Context\ApplicationContext;
+use PHPUnit\Framework\TestCase;
+
+/** Run with your Hyperf test bootstrap and a disposable database containing the schema. */
+final class {{ model }}RepositoryIntegrationTest extends TestCase
+{
+    public function testRepositoryCrudWithinTransaction(): void
+    {
+        if (getenv('CRUD_INTEGRATION_TESTS') !== '1') {
+            self::markTestSkipped('Set CRUD_INTEGRATION_TESTS=1 and bootstrap a disposable Hyperf test database.');
+        }
+        self::assertTrue(ApplicationContext::hasContainer(), 'Load the Hyperf application test bootstrap first.');
+        $connection = (new {{ model }}())->getConnection();
+        $overrides = json_decode(getenv('CRUD_TEST_{{ model }}_FIXTURE') ?: '{}', true, flags: JSON_THROW_ON_ERROR);
+        $connection->beginTransaction();
+        try {
+            $repository = new {{ model }}Repository();
+            $model = $repository->create({{ model }}Factory::definition($overrides));
+            $id = $model->getKey();
+            self::assertNotNull($id);
+            self::assertSame((string) $id, (string) $repository->findOrFail($id)->getKey());
+            $page = $repository->paginate(1, 10, {{ primary_key }}, 'asc', [{{ primary_key }} => $id]);
+            self::assertSame(1, $page['meta']['total']);
+            self::assertCount(1, $page['data']);
+            $changes = {{ update_payload }};
+            $updated = $repository->update($model, $changes);
+            self::assertSame((string) $id, (string) $updated->getKey());
+            foreach ($changes as $field => $value) {
+                self::assertEquals($value, $updated->getAttribute($field));
+            }
+            $repository->delete($updated);
+            self::assertNull({{ model }}::query()->find($id));
+        } finally {
+            $connection->rollBack();
+        }
+    }
+}

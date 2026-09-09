@@ -6,6 +6,7 @@ namespace GustavoQueiroz\HyperfCrudGeneratorTest\Unit;
 
 use GustavoQueiroz\HyperfCrudGenerator\Support\FileWriter;
 use GustavoQueiroz\HyperfCrudGenerator\Support\Name;
+use GustavoQueiroz\HyperfCrudGenerator\Support\Diff;
 use PHPUnit\Framework\TestCase;
 
 final class SupportTest extends TestCase
@@ -50,5 +51,13 @@ final class SupportTest extends TestCase
     {
         $this->expectExceptionMessage('Malformed');
         (new FileWriter())->markedBlock('<?php // <hyperf-crud-generator:User>', 'User', '');
+    }
+
+    public function testDiffContainsChangedLinesAndContext(): void
+    {
+        $diff = Diff::unified('example.php', "first\nold\nlast\n", "first\nnew\nlast\n");
+        self::assertStringContainsString("--- a/example.php\n+++ b/example.php\n", $diff);
+        self::assertStringContainsString("-old\n+new\n last", $diff);
+        self::assertSame('', Diff::unified('same', 'a', 'a'));
     }
 }

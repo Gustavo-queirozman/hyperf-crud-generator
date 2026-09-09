@@ -25,6 +25,12 @@ final class SchemaVariables
         $visible = array_values(array_diff($names, $hidden, array_map(static fn ($c) => $c->name, array_filter($table->columns, static fn ($c) => $c->kind() === 'binary'))));
         $sortable = array_values(array_filter($visible, fn ($name) => ! in_array($table->column($name)->kind(), ['json', 'binary'], true)));
         $searchable = array_values(array_filter($visible, fn ($name) => $table->column($name)->kind() === 'string'));
+        $dates = [];
+        foreach ($visible as $name) {
+            if (in_array($table->column($name)->kind(), ['date', 'datetime'], true)) {
+                $dates[$name] = $table->column($name)->kind() === 'date' ? 'Y-m-d' : 'Y-m-d\TH:i:sP';
+            }
+        }
         $relations = [];
         $used = array_map('strtolower', $names);
         foreach ($table->foreignKeys as $fk) {
@@ -68,9 +74,10 @@ final class SchemaVariables
             'primary_key' => var_export($key->name, true),
             'key_type' => var_export($key->kind() === 'integer' ? 'int' : 'string', true),
             'incrementing' => $key->identity ? 'true' : 'false',
-            'timestamps' => in_array('created_at', $names, true) || in_array('updated_at', $names, true) ? 'true' : 'false',
-            'created_at' => in_array('created_at', $names, true) ? "'created_at'" : 'null',
-            'updated_at' => in_array('updated_at', $names, true) ? "'updated_at'" : 'null',
+            'timestamps' => (in_array('created_at', $names, true) && ! $table->column('created_at')->generated)
+                || (in_array('updated_at', $names, true) && ! $table->column('updated_at')->generated) ? 'true' : 'false',
+            'created_at' => in_array('created_at', $names, true) && ! $table->column('created_at')->generated ? "'created_at'" : 'null',
+            'updated_at' => in_array('updated_at', $names, true) && ! $table->column('updated_at')->generated ? "'updated_at'" : 'null',
             'fillable' => var_export($writable, true),
             'update_fields' => var_export(array_values(array_diff($writable, [$key->name])), true),
             'casts' => var_export($casts, true),
@@ -78,11 +85,20 @@ final class SchemaVariables
             'visible' => var_export($visible, true),
             'sortable' => var_export($sortable, true),
             'searchable' => var_export($searchable, true),
+            'dates' => var_export($dates, true),
+            'filter_keys' => var_export('array:' . implode(',', $sortable), true),
+            'filter_rules' => $this->filterRules($context, $sortable),
             'relations' => implode("\n\n", $relations),
+            'soft_deletes' => in_array('deleted_at', $names, true) && $table->column('deleted_at')->nullable
+                ? '    use \Hyperf\Database\Model\SoftDeletes;' : '',
+            'assign_key' => $key->kind() === 'uuid' && $key->default !== null
+                ? '        $data[' . var_export($key->name, true) . '] ??= \GustavoQueiroz\HyperfCrudGenerator\Support\Uuid::v4();'
+                : '',
             'store_rules' => $this->rules($context, false),
             'update_rules' => $this->rules($context, true),
             'example_payload' => var_export($this->example($context), true),
             'factory_payload' => $this->factory($context),
+            'update_payload' => var_export($this->updateExample($context), true),
             'test_id' => var_export($key->kind() === 'uuid' ? 'd52031f2-026c-4a79-83f8-e8892c734c81' : ($key->kind() === 'integer' ? 1 : '1'), true),
         ];
     }
@@ -92,7 +108,8 @@ final class SchemaVariables
         $table = $context->schema;
         $lines = [];
         foreach ($table->writable($update) as $column) {
-            $rules = [var_export($update || $column->nullable || $column->default !== null ? 'sometimes' : 'required', true)];
+            $requiredKey = in_array($column->name, $table->primaryKey, true) && $column->kind() !== 'uuid';
+            $rules = [var_export($update || (! $requiredKey && ($column->nullable || $column->default !== null)) ? 'sometimes' : 'required', true)];
             $rules[] = var_export($column->nullable ? 'nullable' : 'required', true);
             $type = match ($column->kind()) {
                 'integer' => 'integer', 'bigint', 'decimal', 'number' => 'numeric',
@@ -102,6 +119,14 @@ final class SchemaVariables
                 default => 'string',
             };
             $rules[] = var_export($type, true);
+            if ($column->kind() === 'bigint') {
+                $rules[] = var_export('regex:/^-?[0-9]+$/', true);
+            }
+            if ($column->kind() === 'decimal' && $column->precision !== null && $column->scale !== null) {
+                $whole = max(1, $column->precision - $column->scale);
+                $pattern = '/^-?[0-9]{1,' . $whole . '}' . ($column->scale > 0 ? '(\.[0-9]{1,' . $column->scale . '})?' : '') . '$/';
+                $rules[] = var_export('regex:' . $pattern, true);
+            }
             if ($column->length !== null && $column->kind() === 'string') {
                 $rules[] = var_export('max:' . $column->length, true);
             }
@@ -140,11 +165,28 @@ final class SchemaVariables
         return implode("\n", $lines);
     }
 
+    private function filterRules(GeneratorContext $context, array $columns): string
+    {
+        $lines = [];
+        foreach ($columns as $name) {
+            $column = $context->schema->column($name);
+            $type = match ($column->kind()) {
+                'integer' => 'integer', 'bigint' => 'regex:/^-?[0-9]+$/',
+                'decimal', 'number' => 'numeric', 'boolean' => 'boolean',
+                'uuid' => 'uuid', 'date', 'datetime' => 'date',
+                default => 'string',
+            };
+            $lines[] = '            ' . var_export('filter.' . $name, true) . ' => [\'sometimes\', '
+                . ($column->nullable ? "'nullable', " : '') . var_export($type, true) . '],';
+        }
+        return implode("\n", $lines);
+    }
+
     public function example(GeneratorContext $context): array
     {
         $values = [];
         foreach ($context->schema->writable() as $c) {
-            if ($c->default !== null) {
+            if ($c->default !== null && (! in_array($c->name, $context->schema->primaryKey, true) || $c->kind() === 'uuid')) {
                 continue;
             }
             $values[$c->name] = $c->enum[0] ?? match ($c->kind()) {
@@ -156,6 +198,20 @@ final class SchemaVariables
             };
         }
         return $values;
+    }
+
+    private function updateExample(GeneratorContext $context): array
+    {
+        $foreign = [];
+        foreach ($context->schema->foreignKeys as $fk) {
+            $foreign = array_merge($foreign, $fk['columns']);
+        }
+        foreach ($context->schema->writable(true) as $c) {
+            if (! in_array($c->name, $foreign, true) && $c->kind() === 'string' && $c->enum === []) {
+                return [$c->name => substr('updated', 0, $c->length ?? 7)];
+            }
+        }
+        return [];
     }
 
     private function factory(GeneratorContext $context): string
@@ -174,6 +230,8 @@ final class SchemaVariables
                 $value = 'null';
             } elseif ($c->kind() === 'uuid') {
                 $value = 'self::uuid()';
+            } elseif ($c->kind() === 'string' && $c->enum === [] && in_array([$name], $context->schema->uniqueKeys, true)) {
+                $value = 'substr(bin2hex(random_bytes(16)), 0, ' . min(32, $c->length ?? 32) . ')';
             } else {
                 $value = var_export($example, true);
             }

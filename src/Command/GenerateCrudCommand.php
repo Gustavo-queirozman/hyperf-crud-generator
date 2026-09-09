@@ -8,6 +8,7 @@ use GustavoQueiroz\HyperfCrudGenerator\Generator\CrudGenerator;
 use GustavoQueiroz\HyperfCrudGenerator\Generator\GeneratorContext;
 use GustavoQueiroz\HyperfCrudGenerator\Schema\SchemaInspector;
 use GustavoQueiroz\HyperfCrudGenerator\Support\Name;
+use GustavoQueiroz\HyperfCrudGenerator\Support\Diff;
 use Hyperf\Command\Command;
 use Hyperf\Contract\ConfigInterface;
 use InvalidArgumentException;
@@ -16,14 +17,15 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 use Throwable;
 
-final class GenerateCrudCommand extends Command
+class GenerateCrudCommand extends Command
 {
     public function __construct(
         private readonly ContainerInterface $container,
         private readonly CrudGenerator $generator,
         private readonly SchemaInspector $inspector,
+        string $name = 'crud:generate',
     ) {
-        parent::__construct('crud:generate');
+        parent::__construct($name);
     }
 
     protected function configure()
@@ -39,6 +41,8 @@ final class GenerateCrudCommand extends Command
             ->addOption('components', null, InputOption::VALUE_REQUIRED, 'Comma-separated components; dependencies are included')
             ->addOption('all', null, InputOption::VALUE_NONE, 'Generate every component')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Inspect and validate the output without writing files')
+            ->addOption('diff', null, InputOption::VALUE_NONE, 'Print a unified diff without writing files')
+            ->addOption('regenerate', null, InputOption::VALUE_NONE, 'Update previously generated, unmodified files and preserve custom sections')
             ->addOption('skip-unsupported', null, InputOption::VALUE_NONE, 'In batch mode, report and skip tables with missing/composite primary keys')
             ->addOption('force', 'f', InputOption::VALUE_NONE, 'Replace existing generated files and marked route blocks');
     }
@@ -65,9 +69,16 @@ final class GenerateCrudCommand extends Command
             if ($schema === '') {
                 throw new InvalidArgumentException('Provide --schema or configure the database name.');
             }
-            $batch = (bool) $this->input->getOption('database');
+            $batch = (bool) $this->input->getOption('database') || $this->getName() === 'crud:generate-database';
             $model = $this->input->getArgument('model');
             $table = $this->input->getOption('table');
+            if ($this->getName() === 'crud:generate-table' && $model !== null) {
+                if ($table !== null) {
+                    throw new InvalidArgumentException('Use either the positional table or --table.');
+                }
+                $table = $model;
+                $model = null;
+            }
             if ($batch && ($model !== null || $table !== null)) {
                 throw new InvalidArgumentException('--database cannot be combined with a model or --table.');
             }
@@ -124,19 +135,29 @@ final class GenerateCrudCommand extends Command
                     testPath: $config->get('crud_generator.test_path', BASE_PATH . '/test/Cases'),
                     force: (bool) $this->input->getOption('force') || $config->get('crud_generator.force', false),
                     schema: $meta, connection: $connection,
-                    dryRun: (bool) $this->input->getOption('dry-run'),
+                    dryRun: (bool) $this->input->getOption('dry-run') || (bool) $this->input->getOption('diff'),
                     modelMap: $map,
                     testNamespace: $config->get('crud_generator.test_namespace', 'HyperfTest\\Cases'),
                     hidden: $config->get('crud_generator.hidden', ['password', 'password_hash', 'remember_token', 'api_token', 'secret']),
                     bindingPath: $config->get('crud_generator.binding_path', BASE_PATH . '/config/crud-generator'),
                     relatedTables: $metadata,
+                    regenerate: (bool) $this->input->getOption('regenerate'),
+                    stubPath: $config->get('crud_generator.stub_path'),
                 );
             }
             $components = $this->input->getOption('all') ? CrudGenerator::COMPONENTS
                 : ($this->csv($this->input->getOption('components')) ?: $config->get('crud_generator.components', CrudGenerator::COMPONENTS));
-            $paths = $this->generator->generateBatch($contexts, $components);
+            if ($this->input->getOption('diff')) {
+                $files = $this->generator->plan($contexts, $components);
+                foreach ($files as $path => $contents) {
+                    $this->output->write(Diff::unified($path, is_file($path) ? (string) file_get_contents($path) : '', $contents), false, \Symfony\Component\Console\Output\OutputInterface::OUTPUT_RAW);
+                }
+                $paths = array_keys($files);
+            } else {
+                $paths = $this->generator->generateBatch($contexts, $components);
+            }
             $this->info(sprintf('%s %d table(s), %d file(s).',
-                $this->input->getOption('dry-run') ? 'Preview validated:' : 'Generated:', count($contexts), count($paths)));
+                $this->input->getOption('dry-run') || $this->input->getOption('diff') ? 'Preview validated:' : 'Generated:', count($contexts), count($paths)));
             foreach ($paths as $path) {
                 $this->line('  - ' . $path);
             }

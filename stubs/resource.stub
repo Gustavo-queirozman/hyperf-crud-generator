@@ -10,6 +10,12 @@ final class {{ model }}Resource
 {
     public static function make({{ model }} $model): array
     {
-        return array_intersect_key($model->toArray(), array_flip({{ visible }}));
+        $data = array_intersect_key($model->toArray(), array_flip({{ visible }}));
+        foreach ({{ dates }} as $field => $format) {
+            if (array_key_exists($field, $data) && ($value = $model->getAttribute($field)) instanceof \DateTimeInterface) {
+                $data[$field] = $value->format($format);
+            }
+        }
+        return $data;
     }
 }

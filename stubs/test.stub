@@ -9,6 +9,7 @@ use {{ namespace }}\Model\{{ model }};
 use {{ namespace }}\Request\{{ model }}\Store{{ model }}Request;
 use {{ namespace }}\Request\{{ model }}\Update{{ model }}Request;
 use {{ namespace }}\Service\{{ model }}Service;
+use {{ namespace }}\Policy\{{ model }}Policy;
 use Hyperf\Database\Model\ModelNotFoundException;
 use Hyperf\HttpMessage\Server\Response;
 use Hyperf\HttpServer\Contract\ResponseInterface;
@@ -22,7 +23,9 @@ final class {{ model }}ControllerTest extends TestCase
         $response = $this->createMock(ResponseInterface::class);
         $response->method('json')->willReturnCallback(static fn ($data) => (new Response())->withContent(json_encode($data, JSON_THROW_ON_ERROR))->withHeader('Content-Type', 'application/json'));
         $response->method('raw')->willReturnCallback(static fn ($body) => (new Response())->withContent($body));
-        return new {{ model }}Controller($service, $response, $this->createMock(ValidatorFactoryInterface::class));
+        $policy = $this->createMock({{ model }}Policy::class);
+        $policy->method('allows')->willReturn(true);
+        return new {{ model }}Controller($service, $response, $this->createMock(ValidatorFactoryInterface::class), $policy);
     }
 
     public function testShowReturns404ForMissingResource(): void
@@ -59,6 +62,7 @@ final class {{ model }}ControllerTest extends TestCase
         $model = $this->getMockBuilder({{ model }}::class)->disableOriginalConstructor()->getMock();
         $model->method('toArray')->willReturn([]);
         $service = $this->createMock({{ model }}Service::class);
+        $service->method('get')->willReturn($model);
         $service->expects(self::once())->method('update')->willReturn($model);
         $request = $this->getMockBuilder(Update{{ model }}Request::class)->disableOriginalConstructor()->getMock();
         $request->method('validated')->willReturn([]);
@@ -68,6 +72,7 @@ final class {{ model }}ControllerTest extends TestCase
     public function testDeleteReturns204WithoutBody(): void
     {
         $service = $this->createMock({{ model }}Service::class);
+        $service->method('get')->willReturn($this->getMockBuilder({{ model }}::class)->disableOriginalConstructor()->getMock());
         $service->expects(self::once())->method('delete')->with((string) {{ test_id }});
         $response = $this->controller($service)->destroy((string) {{ test_id }});
         self::assertSame(204, $response->getStatusCode());

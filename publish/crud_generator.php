@@ -15,6 +15,10 @@ return [
     'exclude_tables' => ['migrations'],
     // Fully qualified table => model class basename. Also enables relations to existing models.
     'model_map' => [],
+    'stub_path' => null,
+    // Database structure cannot infer application permissions. Set default to deny for private APIs.
+    // Rules receive (RequestInterface $request, mixed $subject): bool.
+    'authorization' => ['default' => 'allow', 'rules' => []],
     // These columns remain writable but are omitted from responses, filtering and sorting.
     'hidden' => ['password', 'password_hash', 'remember_token', 'api_token', 'secret'],
     'force' => false,

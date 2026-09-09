@@ -57,6 +57,8 @@ return array(
     'Hyperf\\Dispatcher\\' => array($vendorDir . '/hyperf/dispatcher/src'),
     'Hyperf\\Di\\' => array($vendorDir . '/hyperf/di/src'),
     'Hyperf\\DbConnection\\' => array($vendorDir . '/hyperf/db-connection/src'),
+    'Hyperf\\Database\\Sqlsrv\\' => array($vendorDir . '/hyperf/database-sqlserver/src'),
+    'Hyperf\\Database\\PgSQL\\' => array($vendorDir . '/hyperf/database-pgsql/src'),
     'Hyperf\\Database\\' => array($vendorDir . '/hyperf/database/src'),
     'Hyperf\\Coroutine\\' => array($vendorDir . '/hyperf/coroutine/src'),
     'Hyperf\\Coordinator\\' => array($vendorDir . '/hyperf/coordinator/src'),
