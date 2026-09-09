@@ -68,7 +68,7 @@ final class HttpSupportTest extends TestCase
     {
         $validator = $this->createMock(ValidatorInterface::class);
         $messages = $this->createMock(MessageBag::class);
-        $messages->method('messages')->willReturn(['email' => ['Required']]);
+        $messages->method('getMessages')->willReturn(['email' => ['Required']]);
         $validator->method('errors')->willReturn($messages);
         $handler = $this->createMock(RequestHandlerInterface::class);
         $handler->method('handle')->willThrowException(new ValidationException($validator));

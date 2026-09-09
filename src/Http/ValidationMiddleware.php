@@ -25,7 +25,7 @@ final class ValidationMiddleware implements MiddlewareInterface
         } catch (ValidationException $exception) {
             return $this->response->json([
                 'message' => 'Validation failed',
-                'errors' => $exception->errors(),
+                'errors' => $exception->validator->errors()->getMessages(),
             ])->withStatus(422);
         }
     }

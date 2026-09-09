@@ -4,7 +4,7 @@ Gerador de APIs CRUD **schema-aware** para aplicações **Hyperf 3.1 e 3.2**, cr
 
 O pacote inspeciona o schema real do banco e pode gerar automaticamente Model, DTO, Resource, Requests, Repository, Service, Controller, Policy, rotas, Factory, Seeder, OpenAPI/Swagger e testes.
 
-> Versão atual do código: **v1.0.0**
+> Versão atual do código: **v1.1.1**
 
 ## Principais recursos
 
@@ -67,7 +67,7 @@ Para SQL Server, a aplicação deve possuir o driver `hyperf/database-sqlserver`
 Se o pacote estiver disponível no repositório Composer utilizado pelo projeto:
 
 ```bash
-composer require gustavoqueiroz/hyperf-crud-generator:^1.0
+composer require gustavoqueiroz/hyperf-crud-generator:^1.1
 ```
 
 Publique o arquivo de configuração:

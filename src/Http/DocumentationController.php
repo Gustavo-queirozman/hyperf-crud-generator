@@ -21,7 +21,7 @@ final class DocumentationController
             $name = basename($file, '.json');
             $urls[] = ['name' => $name, 'url' => '/docs/openapi/' . rawurlencode($name) . '.json'];
         }
-        $json = json_encode($urls, JSON_THROW_ON_ERROR | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+        $json = json_encode($urls, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
         return $this->response->html(<<<HTML
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>API documentation</title>
