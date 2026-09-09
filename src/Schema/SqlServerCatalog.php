@@ -47,7 +47,8 @@ SQL;
     {
         return <<<'SQL'
 SELECT fk.name AS constraint_name, c.name AS column_name, fs.name AS foreign_schema,
-       ft.name AS foreign_table, fc.name AS foreign_column, fkc.constraint_column_id AS position
+       ft.name AS foreign_table, fc.name AS foreign_column, fkc.constraint_column_id AS position,
+       fk.update_referential_action_desc AS on_update, fk.delete_referential_action_desc AS on_delete
 FROM sys.foreign_keys fk
 JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
 JOIN sys.tables t ON t.object_id = fk.parent_object_id
@@ -57,6 +58,18 @@ JOIN sys.tables ft ON ft.object_id = fk.referenced_object_id
 JOIN sys.schemas fs ON fs.schema_id = ft.schema_id
 JOIN sys.columns fc ON fc.object_id = ft.object_id AND fc.column_id = fkc.referenced_column_id
 WHERE s.name = ? AND t.name = ? ORDER BY fk.name, fkc.constraint_column_id
+SQL;
+    }
+
+    public function checks(): string
+    {
+        return <<<'SQL'
+SELECT cc.name AS constraint_name, cc.definition AS expression
+FROM sys.check_constraints cc
+JOIN sys.tables t ON t.object_id = cc.parent_object_id
+JOIN sys.schemas s ON s.schema_id = t.schema_id
+WHERE s.name = ? AND t.name = ?
+ORDER BY cc.name
 SQL;
     }
 }

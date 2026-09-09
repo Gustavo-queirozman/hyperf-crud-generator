@@ -8,6 +8,7 @@ use {{ namespace }}\Factory\{{ model }}Factory;
 use {{ namespace }}\Model\{{ model }};
 use {{ namespace }}\Repository\{{ model }}Repository;
 use Hyperf\Context\ApplicationContext;
+use Hyperf\Database\Model\ModelNotFoundException;
 use PHPUnit\Framework\TestCase;
 
 /** Run with your Hyperf test bootstrap and a disposable database containing the schema. */
@@ -25,20 +26,29 @@ final class {{ model }}RepositoryIntegrationTest extends TestCase
         try {
             $repository = new {{ model }}Repository();
             $model = $repository->create({{ model }}Factory::definition($overrides));
-            $id = $model->getKey();
+            $id = {{ model_identifier }};
             self::assertNotNull($id);
-            self::assertSame((string) $id, (string) $repository->findOrFail($id)->getKey());
-            $page = $repository->paginate(1, 10, {{ primary_key }}, 'asc', [{{ primary_key }} => $id]);
+            $found = $repository->findOrFail($id);
+            $expectedIdentifier = is_array($id) ? $id : [{{ primary_key }} => $id];
+            foreach ($expectedIdentifier as $column => $value) {
+                self::assertSame((string) $value, (string) $found->getAttribute($column));
+            }
+            $page = $repository->paginate(1, 10, {{ primary_key }}, 'asc', $expectedIdentifier);
             self::assertSame(1, $page['meta']['total']);
             self::assertCount(1, $page['data']);
             $changes = {{ update_payload }};
             $updated = $repository->update($model, $changes);
-            self::assertSame((string) $id, (string) $updated->getKey());
+            self::assertSame($id, {{ updated_identifier }});
             foreach ($changes as $field => $value) {
                 self::assertEquals($value, $updated->getAttribute($field));
             }
             $repository->delete($updated);
-            self::assertNull({{ model }}::query()->find($id));
+            try {
+                $repository->findOrFail($id);
+                self::fail('Deleted resource was still found.');
+            } catch (ModelNotFoundException) {
+                self::assertTrue(true);
+            }
         } finally {
             $connection->rollBack();
         }

@@ -121,6 +121,62 @@ final class GeneratorTest extends TestCase
         self::assertSame('uuid', $spec['paths']['/tokens/{id}']['parameters'][0]['schema']['format']);
     }
 
+    public function testCompositeKeysConstraintsRoutesAndTestsAreGenerated(): void
+    {
+        $table = new Table('memberships', 'public', [
+            new Column('tenant_id', 'int'),
+            new Column('code', 'varchar', length: 32),
+            new Column('parent_tenant_id', 'int'),
+            new Column('parent_code', 'varchar', length: 32),
+            new Column('label', 'varchar', length: 80),
+        ], ['tenant_id', 'code'], [['tenant_id', 'label']], [[
+            'schema' => 'public', 'table' => 'memberships',
+            'columns' => ['parent_tenant_id', 'parent_code'],
+            'references' => ['tenant_id', 'code'],
+        ]]);
+        $context = Fixture::context($this->root, $table, model: 'Membership');
+        $files = $this->generator->plan([$context], CrudGenerator::COMPONENTS);
+        foreach ($files as $path => $contents) {
+            if (str_ends_with($path, '.php')) {
+                token_get_all($contents, TOKEN_PARSE);
+            }
+        }
+        $routes = $files[$context->routesFile];
+        self::assertStringContainsString("'/{key1}/{key2}'", $routes);
+        $controller = $files[$this->root . '/app/Controller/MembershipController.php'];
+        self::assertStringContainsString('show(string $key1, string $key2)', $controller);
+        self::assertStringContainsString("['tenant_id' => \$key1, 'code' => \$key2]", $controller);
+        $repository = $files[$this->root . '/app/Repository/MembershipRepository.php'];
+        self::assertStringContainsString('findOrFail(array|int|string $id)', $repository);
+        self::assertStringContainsString('Composite identifiers must be associative arrays.', $repository);
+        $store = $files[$this->root . '/app/Request/Membership/StoreMembershipRequest.php'];
+        self::assertStringContainsString("'required_with:tenant_id'", $store);
+        self::assertStringContainsString("->where('tenant_id', \$this->input('tenant_id'))", $store);
+        self::assertStringContainsString("->where('tenant_id', \$this->input('parent_tenant_id'))", $store);
+        $spec = json_decode($files[$this->root . '/docs/openapi/membership.json'], true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame(['tenant_id', 'code'], array_column($spec['paths']['/memberships/{key1}/{key2}']['parameters'], 'x-database-column'));
+    }
+
+    public function testCommonCheckConstraintsBecomeValidationRules(): void
+    {
+        $table = new Table('products', 'public', [
+            new Column('id', 'int', identity: true),
+            new Column('price', 'numeric'),
+            new Column('status', 'varchar', length: 20),
+        ], ['id'], checks: [
+            ['name' => 'price_range', 'expression' => 'CHECK ((price >= 0) AND (price <= 999.99))'],
+            ['name' => 'status_values', 'expression' => "CHECK (status IN ('draft', 'active'))"],
+        ]);
+        $context = Fixture::context($this->root, $table, model: 'Product');
+        $files = $this->generator->plan([$context], ['store_request', 'openapi']);
+        $request = $files[$this->root . '/app/Request/Product/StoreProductRequest.php'];
+        self::assertStringContainsString("'min:0'", $request);
+        self::assertStringContainsString("'max:999.99'", $request);
+        self::assertStringContainsString("Rule::in(array (", $request);
+        $spec = json_decode($files[$this->root . '/docs/openapi/product.json'], true, flags: JSON_THROW_ON_ERROR);
+        self::assertCount(2, $spec['x-database']['checks']);
+    }
+
     public function testDependenciesAreIncluded(): void
     {
         $components = $this->generator->resolveComponents(['controller']);

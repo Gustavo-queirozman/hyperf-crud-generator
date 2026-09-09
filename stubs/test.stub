@@ -32,16 +32,16 @@ final class {{ model }}ControllerTest extends TestCase
     {
         $service = $this->createMock({{ model }}Service::class);
         $service->method('get')->willThrowException(new ModelNotFoundException());
-        self::assertSame(404, $this->controller($service)->show((string) {{ test_id }})->getStatusCode());
+        self::assertSame(404, $this->controller($service)->show({{ test_controller_arguments }})->getStatusCode());
     }
 
     public function testShowHidesSensitiveAndUnexpectedFields(): void
     {
         $model = $this->getMockBuilder({{ model }}::class)->disableOriginalConstructor()->getMock();
-        $model->method('toArray')->willReturn([{{ primary_key }} => {{ test_id }}, '__unexpected' => 'secret']);
+        $model->method('toArray')->willReturn({{ test_identifier_payload }} + ['__unexpected' => 'secret']);
         $service = $this->createMock({{ model }}Service::class);
         $service->method('get')->willReturn($model);
-        $response = $this->controller($service)->show((string) {{ test_id }});
+        $response = $this->controller($service)->show({{ test_controller_arguments }});
         self::assertSame(200, $response->getStatusCode());
         self::assertArrayNotHasKey('__unexpected', json_decode((string) $response->getBody(), true)['data']);
     }
@@ -66,15 +66,15 @@ final class {{ model }}ControllerTest extends TestCase
         $service->expects(self::once())->method('update')->willReturn($model);
         $request = $this->getMockBuilder(Update{{ model }}Request::class)->disableOriginalConstructor()->getMock();
         $request->method('validated')->willReturn([]);
-        self::assertSame(200, $this->controller($service)->update((string) {{ test_id }}, $request)->getStatusCode());
+        self::assertSame(200, $this->controller($service)->update({{ test_controller_arguments }}, $request)->getStatusCode());
     }
 
     public function testDeleteReturns204WithoutBody(): void
     {
         $service = $this->createMock({{ model }}Service::class);
         $service->method('get')->willReturn($this->getMockBuilder({{ model }}::class)->disableOriginalConstructor()->getMock());
-        $service->expects(self::once())->method('delete')->with((string) {{ test_id }});
-        $response = $this->controller($service)->destroy((string) {{ test_id }});
+        $service->expects(self::once())->method('delete')->with({{ test_id }});
+        $response = $this->controller($service)->destroy({{ test_controller_arguments }});
         self::assertSame(204, $response->getStatusCode());
         self::assertSame('', (string) $response->getBody());
     }

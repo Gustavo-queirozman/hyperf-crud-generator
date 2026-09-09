@@ -16,6 +16,7 @@ final readonly class Table
         public array $primaryKey,
         public array $uniqueKeys = [],
         public array $foreignKeys = [],
+        public array $checks = [],
     ) {
     }
 
@@ -31,10 +32,15 @@ final readonly class Table
 
     public function key(): Column
     {
-        if (count($this->primaryKey) !== 1) {
-            throw new InvalidArgumentException("Table {$this->name} requires a single primary key for Hyperf ORM CRUD; composite or missing primary keys are not supported.");
+        if ($this->primaryKey === []) {
+            throw new InvalidArgumentException("Table {$this->name} requires a primary key for CRUD generation.");
         }
         return $this->column($this->primaryKey[0]);
+    }
+
+    public function hasCompositeKey(): bool
+    {
+        return count($this->primaryKey) > 1;
     }
 
     public function writable(bool $update = false): array

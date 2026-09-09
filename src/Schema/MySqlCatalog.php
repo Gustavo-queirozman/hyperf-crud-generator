@@ -35,12 +35,28 @@ SQL;
     public function foreignKeys(): string
     {
         return <<<'SQL'
-SELECT CONSTRAINT_NAME AS constraint_name, COLUMN_NAME AS column_name,
-       REFERENCED_TABLE_SCHEMA AS foreign_schema, REFERENCED_TABLE_NAME AS foreign_table,
-       REFERENCED_COLUMN_NAME AS foreign_column, ORDINAL_POSITION AS position
-FROM information_schema.KEY_COLUMN_USAGE
-WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL
-ORDER BY CONSTRAINT_NAME, ORDINAL_POSITION
+SELECT kcu.CONSTRAINT_NAME AS constraint_name, kcu.COLUMN_NAME AS column_name,
+       kcu.REFERENCED_TABLE_SCHEMA AS foreign_schema, kcu.REFERENCED_TABLE_NAME AS foreign_table,
+       kcu.REFERENCED_COLUMN_NAME AS foreign_column, kcu.ORDINAL_POSITION AS position,
+       rc.UPDATE_RULE AS on_update, rc.DELETE_RULE AS on_delete
+FROM information_schema.KEY_COLUMN_USAGE kcu
+LEFT JOIN information_schema.REFERENTIAL_CONSTRAINTS rc
+  ON rc.CONSTRAINT_SCHEMA = kcu.TABLE_SCHEMA AND rc.TABLE_NAME = kcu.TABLE_NAME
+ AND rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+WHERE kcu.TABLE_SCHEMA = ? AND kcu.TABLE_NAME = ? AND kcu.REFERENCED_TABLE_NAME IS NOT NULL
+ORDER BY kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION
+SQL;
+    }
+
+    public function checks(): string
+    {
+        return <<<'SQL'
+SELECT cc.CONSTRAINT_NAME AS constraint_name, cc.CHECK_CLAUSE AS expression
+FROM information_schema.CHECK_CONSTRAINTS cc
+JOIN information_schema.TABLE_CONSTRAINTS tc
+  ON tc.CONSTRAINT_SCHEMA = cc.CONSTRAINT_SCHEMA AND tc.CONSTRAINT_NAME = cc.CONSTRAINT_NAME
+WHERE tc.TABLE_SCHEMA = ? AND tc.TABLE_NAME = ? AND tc.CONSTRAINT_TYPE = 'CHECK'
+ORDER BY cc.CONSTRAINT_NAME
 SQL;
     }
 }

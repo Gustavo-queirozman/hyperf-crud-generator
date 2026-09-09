@@ -19,7 +19,7 @@ class {{ model }}Service
         return $this->repository->paginate($page, $perPage, $sort, $direction, $filters, $search);
     }
 
-    public function get(int|string $id): {{ model }}
+    public function get(array|int|string $id): {{ model }}
     {
         return $this->repository->findOrFail($id);
     }
@@ -29,12 +29,12 @@ class {{ model }}Service
         return $this->repository->create($data->toArray());
     }
 
-    public function update(int|string $id, {{ model }}Data $data): {{ model }}
+    public function update(array|int|string $id, {{ model }}Data $data): {{ model }}
     {
         return $this->repository->update($this->get($id), $data->toArray());
     }
 
-    public function delete(int|string $id): void
+    public function delete(array|int|string $id): void
     {
         $this->repository->delete($this->get($id));
     }

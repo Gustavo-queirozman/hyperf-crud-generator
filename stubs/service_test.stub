@@ -27,8 +27,10 @@ final class {{ model }}ServiceTest extends TestCase
 
     public function testUpdateKeepsPrimaryKeyImmutable(): void
     {
-        $data = {{ model }}Data::fromArray([{{ primary_key }} => {{ test_id }}] + {{ example_payload }}, true);
-        self::assertArrayNotHasKey({{ primary_key }}, $data->toArray());
+        $data = {{ model }}Data::fromArray({{ test_identifier_payload }} + {{ example_payload }}, true);
+        foreach (array_keys({{ test_identifier_payload }}) as $key) {
+            self::assertArrayNotHasKey($key, $data->toArray());
+        }
         $model = $this->getMockBuilder({{ model }}::class)->disableOriginalConstructor()->getMock();
         $repository = $this->createMock({{ model }}RepositoryInterface::class);
         $repository->expects(self::once())->method('findOrFail')->with({{ test_id }})->willReturn($model);

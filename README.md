@@ -4,11 +4,7 @@ Gerador de APIs CRUD **schema-aware** para aplicações **Hyperf 3.1 e 3.2**, cr
 
 O pacote inspeciona o schema real do banco e pode gerar automaticamente Model, DTO, Resource, Requests, Repository, Service, Controller, Policy, rotas, Factory, Seeder, OpenAPI/Swagger e testes.
 
-<<<<<<< HEAD
-> Versão atual do código: **v1.1.0**
-=======
-> Versão atual do código: **v1.1.1**
->>>>>>> e0a541a (feat: add full CRUD scaffolding with OpenAPI and test coverage)
+> Versão preparada por estas alterações: **v1.2.0**
 
 ## Principais recursos
 
@@ -16,15 +12,16 @@ O pacote inspeciona o schema real do banco e pode gerar automaticamente Model, D
 - Geração de uma tabela específica ou de um banco/schema inteiro.
 - Suporte a **MySQL**, **MariaDB**, **PostgreSQL** e **SQL Server**.
 - Inferência automática do nome do Model a partir da tabela.
-- Leitura de colunas, chave primária, índices `UNIQUE` e chaves estrangeiras.
+- Leitura de colunas, chaves primárias simples/compostas, índices `UNIQUE`, chaves estrangeiras, ações referenciais e `CHECK` constraints.
 - `$fillable`, `$casts`, `$hidden`, timestamps e `SoftDeletes` derivados do schema.
-- Validações geradas a partir de tipos, nulabilidade, tamanho, enum, `UNIQUE` simples e FK simples.
+- Validações geradas a partir de tipos, nulabilidade, tamanho, enum, `UNIQUE` simples/composto, FK simples/composta e expressões `CHECK` comuns.
 - Relacionamentos `BelongsTo`, `HasOne` e `HasMany` quando inferíveis.
 - Repository Interface + implementação e binding automático no container.
 - DTO para limitar os campos recebidos pela camada de serviço.
 - Resource para controlar os campos retornados pela API.
 - Paginação, ordenação, filtros por igualdade e busca textual.
 - Policies com adaptador de autorização configurável.
+- Middleware de autenticação/autorização configurável nas rotas geradas.
 - Factory e Seeder.
 - OpenAPI 3.0.3 em JSON.
 - Swagger UI em `/docs`.
@@ -71,7 +68,7 @@ Para SQL Server, a aplicação deve possuir o driver `hyperf/database-sqlserver`
 Se o pacote estiver disponível no repositório Composer utilizado pelo projeto:
 
 ```bash
-composer require gustavoqueiroz/hyperf-crud-generator:^1.1
+composer require gustavoqueiroz/hyperf-crud-generator:^1.2
 ```
 
 Publique o arquivo de configuração:
@@ -230,7 +227,7 @@ As exclusões informadas pela CLI são combinadas com `crud_generator.exclude_ta
 
 ---
 
-## Ignorar tabelas sem PK simples
+## Ignorar tabelas sem PK
 
 Em geração em lote:
 
@@ -238,10 +235,9 @@ Em geração em lote:
 php bin/hyperf.php crud:generate-database --skip-unsupported
 ```
 
-Essa opção faz o gerador reportar e ignorar tabelas que:
+Essa opção faz o gerador reportar e ignorar tabelas que não possuem chave primária.
 
-- não possuem chave primária; ou
-- possuem chave primária composta.
+Chaves primárias compostas são suportadas. As rotas recebem um parâmetro por coluna, na ordem do schema, como `/{key1}/{key2}`.
 
 Sem essa opção, a primeira tabela não suportada interrompe a geração.
 
@@ -420,6 +416,8 @@ As rotas geradas são:
 | `PATCH` | `/users/{id}` | atualização parcial |
 | `DELETE` | `/users/{id}` | exclusão |
 
+Uma PK composta gera um segmento para cada coluna, por exemplo `/memberships/{key1}/{key2}`. Cada parâmetro OpenAPI informa a coluna correspondente em `x-database-column`.
+
 As rotas recebem os middlewares:
 
 ```php
@@ -428,6 +426,8 @@ Hyperf\Validation\Middleware\ValidationMiddleware::class
 ```
 
 O primeiro normaliza falhas de validação para o contrato JSON da API.
+
+As classes configuradas em `crud_generator.route_middlewares` são acrescentadas depois desses dois middlewares.
 
 ---
 
@@ -502,6 +502,8 @@ Atualmente são coletados:
 - chave primária;
 - índices `UNIQUE`;
 - foreign keys;
+- ações `ON UPDATE` e `ON DELETE` das foreign keys;
+- `CHECK` constraints;
 - enums nativos quando disponíveis.
 
 ---
@@ -595,10 +597,11 @@ O gerador pode produzir regras para:
 - `min:0` para valores unsigned;
 - precisão/escala decimal por regex;
 - enum com `Rule::in(...)`;
-- `Rule::unique(...)` para `UNIQUE` de uma única coluna;
-- `Rule::exists(...)` para foreign key de uma única coluna.
+- `Rule::unique(...)` para `UNIQUE` simples e composto;
+- `Rule::exists(...)` para foreign key simples e composta;
+- `min`, `max`, `between` e `Rule::in(...)` para formatos comuns de `CHECK`.
 
-No Update, a regra `unique` utiliza a chave primária atual no `ignore(...)`.
+No Update, a regra `unique` exclui a linha identificada pela chave primária atual, inclusive quando a PK é composta. Em constraints compostas, `required_with` evita validar apenas uma parte da chave.
 
 Campos que não podem ser escritos — como identity, colunas geradas e PK no Update — recebem regra:
 
@@ -771,7 +774,7 @@ GustavoQueiroz\HyperfCrudGenerator\Authorization\AuthorizationInterface
 
 por um adaptador próprio para RBAC, ACL ou outro mecanismo da aplicação.
 
-> A autenticação da aplicação continua sendo responsabilidade do projeto consumidor. O pacote não adiciona automaticamente middleware de login/JWT/OAuth às rotas geradas.
+O pacote não escolhe um mecanismo de login/JWT/OAuth, pois isso depende da aplicação. Configure as classes já instaladas no projeto em `route_middlewares`; elas serão adicionadas a todos os grupos CRUD gerados.
 
 ---
 
@@ -826,7 +829,7 @@ O documento inclui:
 - tamanho máximo;
 - campos read-only;
 - campos write-only;
-- metadata de PK, UNIQUE e FKs em `x-database`;
+- metadata de PK, UNIQUE, FKs, ações referenciais e `CHECK` em `x-database`;
 - respostas `403`, `404`, `409` e `422` quando aplicável.
 
 O componente `swagger` adiciona ao arquivo de rotas:
@@ -1017,6 +1020,10 @@ return [
         'rules' => [],
     ],
 
+    'route_middlewares' => [
+        // \App\Middleware\JwtAuthMiddleware::class,
+    ],
+
     'hidden' => [
         'password',
         'password_hash',
@@ -1048,6 +1055,7 @@ return [
 | `model_map` | mapeamento `schema.table => Model` |
 | `stub_path` | diretório opcional de stubs customizados |
 | `authorization` | regras do adaptador de autorização padrão |
+| `route_middlewares` | middlewares da aplicação adicionados aos grupos de rotas CRUD |
 | `hidden` | campos graváveis que não devem aparecer nas respostas/filtros |
 | `force` | permite sobrescrita global via configuração |
 | `components` | componentes gerados quando a CLI não especifica `--components` |
@@ -1230,7 +1238,7 @@ Principais opções disponíveis nos comandos de geração:
 | `--dry-run` | valida sem gravar |
 | `--diff` | imprime diff sem gravar |
 | `--regenerate` | regenera arquivos controlados pelo manifesto |
-| `--skip-unsupported` | ignora PK ausente/composta em modo database |
+| `--skip-unsupported` | ignora tabelas sem PK em modo database |
 | `--force` / `-f` | força substituição |
 
 `--tables` e `--skip-unsupported` só podem ser utilizados no modo de geração de database.
@@ -1315,15 +1323,19 @@ O pacote é schema-aware, mas nem toda estrutura possível de um banco relaciona
 
 ## Chave primária
 
-É exigida exatamente **uma coluna de chave primária**.
-
-Ainda não há suporte de CRUD ORM para:
+É exigida uma chave primária. Chaves simples e compostas são aceitas:
 
 ```text
 PRIMARY KEY (column_a, column_b)
 ```
 
-ou tabelas sem PK.
+Para PK composta, o Controller e o OpenAPI usam `/{key1}/{key2}`, e Service/Repository usam um array associativo como:
+
+```php
+['column_a' => $key1, 'column_b' => $key2]
+```
+
+O Repository gerado consulta, atualiza e remove a linha por todas as colunas da PK, sem depender de `Model::find()` para a chave composta. Tabelas sem PK continuam sem um identificador seguro para CRUD.
 
 Em lote, use:
 
@@ -1333,22 +1345,13 @@ Em lote, use:
 
 para ignorá-las.
 
-## `UNIQUE` composto
+## Constraints compostas
 
-O catálogo detecta índices `UNIQUE` compostos, mas a regra de validação automática `Rule::unique()` é criada somente para constraints de **uma coluna**.
+Índices `UNIQUE` e foreign keys compostos geram regras com escopo pelas demais colunas da constraint. As partes também recebem `required_with`.
 
-Constraints compostas continuam sendo aplicadas pelo próprio banco de dados.
+Relacionamentos ORM `BelongsTo`, `HasOne` e `HasMany` continuam sendo gerados apenas para FKs de uma coluna, porque as relações nativas do Hyperf/Eloquent não possuem chave composta.
 
-## Foreign keys compostas
-
-Foreign keys compostas são lidas pelo catálogo, porém a geração automática de:
-
-- `Rule::exists()`;
-- `BelongsTo`;
-- `HasOne`;
-- `HasMany`;
-
-é realizada somente para FKs de uma coluna.
+O banco permanece a autoridade final para concorrência entre a validação e a gravação; violações ainda são convertidas em HTTP `409`.
 
 ## Views
 
@@ -1368,11 +1371,13 @@ Revise o resultado para tipos como geoespaciais, ranges, arrays e tipos definido
 
 ## `CHECK` constraints
 
-`CHECK` constraints ainda não são convertidas automaticamente em regras Hyperf Validation.
+O catálogo preserva todas as expressões em `x-database.checks`. O gerador converte automaticamente padrões escalares seguros com `BETWEEN`, `>=`, `<=`, `IN` e limite de tamanho por `CHAR_LENGTH`, `CHARACTER_LENGTH`, `LENGTH` ou `LEN`.
+
+Expressões com funções específicas do banco, comparações entre colunas, regex SQL, subexpressões complexas ou lógica dependente de sessão permanecem sob responsabilidade do banco.
 
 ## Ações de FK
 
-Regras como:
+Regras como estas são lidas e publicadas em `x-database.foreignKeys`:
 
 ```text
 ON DELETE CASCADE
@@ -1380,13 +1385,13 @@ ON DELETE SET NULL
 ON UPDATE CASCADE
 ```
 
-não são atualmente utilizadas para geração de comportamento na aplicação.
+O gerador não duplica cascatas no Service/Repository. O banco executa a ação referencial de forma atômica.
 
 ## Autenticação
 
-O pacote possui Policy/autorização, mas não instala middleware de autenticação automaticamente.
+O pacote possui Policy/autorização e adiciona os middlewares informados em `route_middlewares` às rotas geradas.
 
-Integre as rotas com o mecanismo de autenticação da aplicação antes de expor APIs privadas.
+Como o schema não informa qual biblioteca de identidade a aplicação usa, a instalação e a configuração do middleware de login/JWT/OAuth continuam sendo feitas no projeto consumidor.
 
 ---
 
@@ -1449,7 +1454,13 @@ Para APIs privadas:
 ],
 ```
 
-### 5. Adicionar autenticação às rotas conforme a aplicação
+### 5. Configurar autenticação das rotas conforme a aplicação
+
+```php
+'route_middlewares' => [
+    \App\Middleware\JwtAuthMiddleware::class,
+],
+```
 
 ### 6. Executar os testes
 

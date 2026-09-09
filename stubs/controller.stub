@@ -55,10 +55,10 @@ class {{ model }}Controller
         ));
     }
 
-    public function show(string $id): PsrResponseInterface
+    public function show({{ controller_identifier_signature }}): PsrResponseInterface
     {
-        return $this->execute(function () use ($id): array {
-            $model = $this->service->get($id);
+        return $this->execute(function () use ({{ controller_identifier_use }}): array {
+            $model = $this->service->get({{ identifier_expression }});
             $this->policy->authorize('view', $model);
             return ['data' => {{ model }}Resource::make($model)];
         });
@@ -74,21 +74,21 @@ class {{ model }}Controller
         }, 201);
     }
 
-    public function update(string $id, Update{{ model }}Request $request): PsrResponseInterface
+    public function update({{ controller_identifier_signature }}, Update{{ model }}Request $request): PsrResponseInterface
     {
-        return $this->execute(function () use ($id, $request): array {
-            $this->policy->authorize('update', $this->service->get($id));
+        return $this->execute(function () use ({{ controller_identifier_use }}, $request): array {
+            $this->policy->authorize('update', $this->service->get({{ identifier_expression }}));
             return ['data' => {{ model }}Resource::make(
-                $this->service->update($id, {{ model }}Data::fromArray($request->validated(), true))
+                $this->service->update({{ identifier_expression }}, {{ model }}Data::fromArray($request->validated(), true))
             )];
         });
     }
 
-    public function destroy(string $id): PsrResponseInterface
+    public function destroy({{ controller_identifier_signature }}): PsrResponseInterface
     {
-        return $this->execute(function () use ($id): array {
-            $this->policy->authorize('delete', $this->service->get($id));
-            $this->service->delete($id);
+        return $this->execute(function () use ({{ controller_identifier_use }}): array {
+            $this->policy->authorize('delete', $this->service->get({{ identifier_expression }}));
+            $this->service->delete({{ identifier_expression }});
             return [];
         }, 204);
     }
@@ -118,7 +118,7 @@ class {{ model }}Controller
     private function validationError(ValidatorInterface $validator): PsrResponseInterface
     {
         return $this->response->json([
-            'message' => 'Validation failed', 'errors' => $validator->errors()->messages(),
+            'message' => 'Validation failed', 'errors' => $validator->errors()->getMessages(),
         ])->withStatus(422);
     }
 

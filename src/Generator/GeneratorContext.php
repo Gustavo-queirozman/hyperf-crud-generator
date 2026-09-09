@@ -33,6 +33,7 @@ final readonly class GeneratorContext
         public array $relatedTables = [],
         public bool $regenerate = false,
         public ?string $stubPath = null,
+        public array $routeMiddlewares = [],
     ) {
         foreach ([$namespace, $testNamespace] as $value) {
             if (! preg_match('/^[A-Za-z_][A-Za-z0-9_]*(\\\\[A-Za-z_][A-Za-z0-9_]*)*$/D', $value)) {

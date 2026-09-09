@@ -48,7 +48,9 @@ SQL;
         return <<<'SQL'
 SELECT con.conname AS constraint_name, local.attname AS column_name,
        fns.nspname AS foreign_schema, ft.relname AS foreign_table,
-       remote.attname AS foreign_column, key.ordinality AS position
+       remote.attname AS foreign_column, key.ordinality AS position,
+       CASE con.confupdtype WHEN 'c' THEN 'CASCADE' WHEN 'n' THEN 'SET NULL' WHEN 'd' THEN 'SET DEFAULT' WHEN 'r' THEN 'RESTRICT' ELSE 'NO ACTION' END AS on_update,
+       CASE con.confdeltype WHEN 'c' THEN 'CASCADE' WHEN 'n' THEN 'SET NULL' WHEN 'd' THEN 'SET DEFAULT' WHEN 'r' THEN 'RESTRICT' ELSE 'NO ACTION' END AS on_delete
 FROM pg_catalog.pg_constraint con
 JOIN pg_catalog.pg_class tab ON tab.oid = con.conrelid
 JOIN pg_catalog.pg_namespace ns ON ns.oid = tab.relnamespace
@@ -59,6 +61,18 @@ JOIN pg_catalog.pg_attribute local ON local.attrelid = tab.oid AND local.attnum 
 JOIN pg_catalog.pg_attribute remote ON remote.attrelid = ft.oid AND remote.attnum = key.foreign_num
 WHERE ns.nspname = ? AND tab.relname = ? AND con.contype = 'f'
 ORDER BY con.conname, key.ordinality
+SQL;
+    }
+
+    public function checks(): string
+    {
+        return <<<'SQL'
+SELECT con.conname AS constraint_name, pg_get_constraintdef(con.oid, true) AS expression
+FROM pg_catalog.pg_constraint con
+JOIN pg_catalog.pg_class tab ON tab.oid = con.conrelid
+JOIN pg_catalog.pg_namespace ns ON ns.oid = tab.relnamespace
+WHERE ns.nspname = ? AND tab.relname = ? AND con.contype = 'c'
+ORDER BY con.conname
 SQL;
     }
 }

@@ -43,7 +43,7 @@ class GenerateCrudCommand extends Command
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Inspect and validate the output without writing files')
             ->addOption('diff', null, InputOption::VALUE_NONE, 'Print a unified diff without writing files')
             ->addOption('regenerate', null, InputOption::VALUE_NONE, 'Update previously generated, unmodified files and preserve custom sections')
-            ->addOption('skip-unsupported', null, InputOption::VALUE_NONE, 'In batch mode, report and skip tables with missing/composite primary keys')
+            ->addOption('skip-unsupported', null, InputOption::VALUE_NONE, 'In batch mode, report and skip tables without a primary key')
             ->addOption('force', 'f', InputOption::VALUE_NONE, 'Replace existing generated files and marked route blocks');
     }
 
@@ -143,6 +143,7 @@ class GenerateCrudCommand extends Command
                     relatedTables: $metadata,
                     regenerate: (bool) $this->input->getOption('regenerate'),
                     stubPath: $config->get('crud_generator.stub_path'),
+                    routeMiddlewares: $config->get('crud_generator.route_middlewares', []),
                 );
             }
             $components = $this->input->getOption('all') ? CrudGenerator::COMPONENTS

@@ -77,8 +77,17 @@ final class SchemaInspector
             $foreign[$name]['table'] = $row['foreign_table'];
             $foreign[$name]['columns'][] = $row['column_name'];
             $foreign[$name]['references'][] = $row['foreign_column'];
+            $foreign[$name]['on_update'] = strtoupper(str_replace('_', ' ', (string) ($row['on_update'] ?? 'NO ACTION')));
+            $foreign[$name]['on_delete'] = strtoupper(str_replace('_', ' ', (string) ($row['on_delete'] ?? 'NO ACTION')));
         }
-        return new Table($table, $schema, $columns, $primary, array_values($unique), array_values($foreign));
+        $checkRows = method_exists($catalog, 'checks')
+            ? $this->executor->select($connection, $catalog->checks(), [$schema, $table])
+            : [];
+        $checks = array_map(static fn (array $row): array => [
+            'name' => (string) $row['constraint_name'],
+            'expression' => (string) $row['expression'],
+        ], $checkRows);
+        return new Table($table, $schema, $columns, $primary, array_values($unique), array_values($foreign), $checks);
     }
 
     private function truth(mixed $value): bool

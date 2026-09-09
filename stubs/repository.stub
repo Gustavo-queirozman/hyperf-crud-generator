@@ -31,8 +31,10 @@ class {{ model }}Repository implements {{ model }}RepositoryInterface
             });
         }
         $query->orderBy($sort, $direction);
-        if ($sort !== {{ primary_key }}) {
-            $query->orderBy({{ primary_key }});
+        foreach ({{ primary_keys }} as $key) {
+            if ($sort !== $key) {
+                $query->orderBy($key);
+            }
         }
         $result = $query->paginate(max(1, min(100, $perPage)), ['*'], 'page', max(1, $page));
         return [
@@ -46,28 +48,63 @@ class {{ model }}Repository implements {{ model }}RepositoryInterface
         ];
     }
 
-    public function findOrFail(int|string $id): {{ model }}
+    public function findOrFail(array|int|string $id): {{ model }}
     {
-        return {{ model }}::query()->findOrFail($id);
+        return $this->queryByIdentifier($id)->firstOrFail();
     }
 
     public function create(array $data): {{ model }}
     {
 {{ assign_key }}
         $model = {{ model }}::query()->create($data);
-        return $model->refresh();
+{{ repository_create_return }}
     }
 
     public function update({{ model }} $model, array $data): {{ model }}
     {
-        $model->fill($data);
-        $model->save();
-        return $model->refresh();
+{{ repository_update }}
     }
 
     public function delete({{ model }} $model): void
     {
-        $model->delete();
+{{ repository_delete }}
+    }
+
+    private function queryByIdentifier(array|int|string $id): Builder
+    {
+        $query = {{ model }}::query();
+        foreach ($this->normalizeIdentifier($id) as $column => $value) {
+            $query->where($column, $value);
+        }
+        return $query;
+    }
+
+    private function identifier({{ model }} $model): array|int|string
+    {
+        $keys = {{ primary_keys }};
+        if (count($keys) === 1) {
+            return $model->getAttribute($keys[0]);
+        }
+        $id = [];
+        foreach ($keys as $key) {
+            $id[$key] = $model->getAttribute($key);
+        }
+        return $id;
+    }
+
+    private function normalizeIdentifier(array|int|string $id): array
+    {
+        $keys = {{ primary_keys }};
+        if (! is_array($id)) {
+            if (count($keys) !== 1) {
+                throw new \InvalidArgumentException('Composite identifiers must be associative arrays.');
+            }
+            $id = [$keys[0] => $id];
+        }
+        if (count($id) !== count($keys) || array_diff($keys, array_keys($id)) !== []) {
+            throw new \InvalidArgumentException('Identifier must contain exactly these columns: ' . implode(', ', $keys));
+        }
+        return array_replace(array_fill_keys($keys, null), $id);
     }
 
     // <crud-custom>

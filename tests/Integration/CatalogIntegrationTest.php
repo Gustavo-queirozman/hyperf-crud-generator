@@ -58,7 +58,7 @@ final class CatalogIntegrationTest extends TestCase
         $parentKey = $driver === 'sqlsrv' ? 'BIGINT IDENTITY(9000000000,1)' : 'BIGINT';
         $pdo->exec("CREATE TABLE $parentQualified (id $parentKey PRIMARY KEY)");
         try {
-            $pdo->exec("CREATE TABLE $qualified (id $identity PRIMARY KEY, email VARCHAR(120) NOT NULL UNIQUE, parent_id BIGINT NULL, amount DECIMAL(12,2) NOT NULL DEFAULT 0, FOREIGN KEY (parent_id) REFERENCES $parentQualified (id))");
+            $pdo->exec("CREATE TABLE $qualified (id $identity PRIMARY KEY, email VARCHAR(120) NOT NULL UNIQUE, parent_id BIGINT NULL, amount DECIMAL(12,2) NOT NULL DEFAULT 0 CHECK (amount >= 0), FOREIGN KEY (parent_id) REFERENCES $parentQualified (id) ON DELETE SET NULL)");
             try {
                 if ($driver === 'sqlsrv') {
                     $trigger = $quote($schema) . '.' . $quote($name . '_trigger');
@@ -83,6 +83,8 @@ final class CatalogIntegrationTest extends TestCase
                 self::assertContains(['email'], $table->uniqueKeys);
                 self::assertSame(['parent_id'], $table->foreignKeys[0]['columns']);
                 self::assertSame($parent, $table->foreignKeys[0]['table']);
+                self::assertSame('SET NULL', $table->foreignKeys[0]['on_delete']);
+                self::assertNotEmpty($table->checks);
                 $this->exerciseGeneratedRepository($pdo, $driver, $table);
             } finally {
                 $pdo->exec("DROP TABLE $qualified");

@@ -87,16 +87,30 @@ final class OpenApiGenerator
             'requestBody' => ['required' => true, 'content' => $json($ref($model . 'Update'))],
             'responses' => ['200' => $success($item)] + $errors,
         ];
-        $id = $this->property($table->key());
-        unset($id['nullable'], $id['readOnly']);
+        $pathParameters = [];
+        $path = '';
+        foreach ($table->primaryKey as $index => $columnName) {
+            $name = count($table->primaryKey) === 1 ? 'id' : 'key' . ($index + 1);
+            $schema = $this->property($table->column($columnName));
+            unset($schema['nullable'], $schema['readOnly']);
+            $path .= '/{' . $name . '}';
+            $pathParameters[] = [
+                'name' => $name,
+                'in' => 'path',
+                'required' => true,
+                'description' => 'Primary-key column ' . $columnName . '.',
+                'schema' => $schema,
+                'x-database-column' => $columnName,
+            ];
+        }
         return [
             'openapi' => '3.0.3',
             'info' => ['title' => $model . ' API', 'version' => '1.0.0'],
             'servers' => [['url' => '/']],
             'paths' => [
                 '/' . $context->resource => ['get' => $list, 'post' => $store],
-                '/' . $context->resource . '/{id}' => [
-                    'parameters' => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => $id]],
+                '/' . $context->resource . $path => [
+                    'parameters' => $pathParameters,
                     'get' => $operation('show') + ['responses' => ['200' => $success($item), '403' => $errors['403'], '404' => $errors['404']]],
                     'put' => $update,
                     'patch' => array_replace($update, ['operationId' => lcfirst($model) . 'Patch']),
@@ -107,7 +121,7 @@ final class OpenApiGenerator
             ],
             'components' => ['schemas' => $schemas],
             'x-database' => ['table' => $context->table, 'primaryKey' => $table->primaryKey,
-                'uniqueKeys' => $table->uniqueKeys, 'foreignKeys' => $table->foreignKeys],
+                'uniqueKeys' => $table->uniqueKeys, 'foreignKeys' => $table->foreignKeys, 'checks' => $table->checks],
         ];
     }
 

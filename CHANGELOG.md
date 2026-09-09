@@ -2,6 +2,21 @@
 
 Todas as mudanças relevantes deste pacote são documentadas neste arquivo.
 
+## [1.2.0] - 2026-09-09
+
+### Adicionado
+
+- CRUD completo para chaves primárias compostas, incluindo rotas, Controller, Service, Repository, OpenAPI e testes gerados.
+- Validação com escopo para índices `UNIQUE` e foreign keys compostos.
+- Leitura de `CHECK` constraints com conversão dos padrões escalares seguros em regras de validação.
+- Leitura das ações `ON UPDATE`/`ON DELETE` e publicação desses metadados no OpenAPI.
+- Configuração `route_middlewares` para autenticação e outros middlewares da aplicação.
+
+### Corrigido
+
+- Controller gerado passa a usar `MessageBag::getMessages()` ao serializar erros de validação.
+- Swagger UI serializa URLs das especificações sem barras escapadas.
+
 ## [1.1.1] - 2026-09-09
 
 ### Corrigido
@@ -25,6 +40,7 @@ Todas as mudanças relevantes deste pacote são documentadas neste arquivo.
 
 - Primeira versão estável do gerador baseado em stubs.
 
+[1.2.0]: https://github.com/Gustavo-queirozman/hyperf-crud-generator/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/Gustavo-queirozman/hyperf-crud-generator/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Gustavo-queirozman/hyperf-crud-generator/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Gustavo-queirozman/hyperf-crud-generator/releases/tag/v1.0.0

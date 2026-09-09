@@ -13,6 +13,28 @@ final class SchemaVariables
     {
         $table = $context->schema ?? throw new \InvalidArgumentException('Schema metadata is required. Select a configured database connection.');
         $key = $table->key();
+        $modelKey = $key;
+        foreach ($table->primaryKey as $primaryName) {
+            if ($table->column($primaryName)->identity) {
+                $modelKey = $table->column($primaryName);
+                break;
+            }
+        }
+        $keyParameters = $this->keyParameters($table->primaryKey);
+        $testIdentifier = [];
+        foreach ($table->primaryKey as $name) {
+            $testIdentifier[$name] = $this->exampleValue($table->column($name));
+        }
+        $identifierExpression = count($keyParameters) === 1
+            ? '$' . $keyParameters[0]['parameter']
+            : '[' . implode(', ', array_map(
+                static fn (array $item): string => var_export($item['column'], true) . ' => $' . $item['parameter'],
+                $keyParameters
+            )) . ']';
+        $routeMiddlewares = array_values(array_unique(array_merge([
+            \GustavoQueiroz\HyperfCrudGenerator\Http\ValidationMiddleware::class,
+            \Hyperf\Validation\Middleware\ValidationMiddleware::class,
+        ], array_values(array_filter($context->routeMiddlewares, 'is_string')))));
         $casts = [];
         foreach ($table->columns as $column) {
             if ($column->cast() !== null) {
@@ -72,14 +94,15 @@ final class SchemaVariables
             'table_literal' => var_export($context->table, true),
             'connection_literal' => var_export($context->connection, true),
             'primary_key' => var_export($key->name, true),
-            'key_type' => var_export($key->kind() === 'integer' ? 'int' : 'string', true),
-            'incrementing' => $key->identity ? 'true' : 'false',
+            'model_primary_key' => var_export($modelKey->name, true),
+            'key_type' => var_export($modelKey->kind() === 'integer' ? 'int' : 'string', true),
+            'incrementing' => $modelKey->identity ? 'true' : 'false',
             'timestamps' => (in_array('created_at', $names, true) && ! $table->column('created_at')->generated)
                 || (in_array('updated_at', $names, true) && ! $table->column('updated_at')->generated) ? 'true' : 'false',
             'created_at' => in_array('created_at', $names, true) && ! $table->column('created_at')->generated ? "'created_at'" : 'null',
             'updated_at' => in_array('updated_at', $names, true) && ! $table->column('updated_at')->generated ? "'updated_at'" : 'null',
             'fillable' => var_export($writable, true),
-            'update_fields' => var_export(array_values(array_diff($writable, [$key->name])), true),
+            'update_fields' => var_export(array_values(array_diff($writable, $table->primaryKey)), true),
             'casts' => var_export($casts, true),
             'hidden' => var_export($hidden, true),
             'visible' => var_export($visible, true),
@@ -91,15 +114,45 @@ final class SchemaVariables
             'relations' => implode("\n\n", $relations),
             'soft_deletes' => in_array('deleted_at', $names, true) && $table->column('deleted_at')->nullable
                 ? '    use \Hyperf\Database\Model\SoftDeletes;' : '',
-            'assign_key' => $key->kind() === 'uuid' && $key->default !== null
-                ? '        $data[' . var_export($key->name, true) . '] ??= \GustavoQueiroz\HyperfCrudGenerator\Support\Uuid::v4();'
-                : '',
+            'assign_key' => implode("\n", array_map(
+                static fn (string $name): string => '        $data[' . var_export($name, true)
+                    . '] ??= \GustavoQueiroz\HyperfCrudGenerator\Support\Uuid::v4();',
+                array_values(array_filter($table->primaryKey, fn (string $name): bool =>
+                    $table->column($name)->kind() === 'uuid' && $table->column($name)->default !== null
+                ))
+            )),
             'store_rules' => $this->rules($context, false),
             'update_rules' => $this->rules($context, true),
             'example_payload' => var_export($this->example($context), true),
             'factory_payload' => $this->factory($context),
             'update_payload' => var_export($this->updateExample($context), true),
-            'test_id' => var_export($key->kind() === 'uuid' ? 'd52031f2-026c-4a79-83f8-e8892c734c81' : ($key->kind() === 'integer' ? 1 : '1'), true),
+            'primary_keys' => var_export($table->primaryKey, true),
+            'route_identifier' => implode('', array_map(static fn (array $item): string => '/{' . $item['parameter'] . '}', $keyParameters)),
+            'route_middlewares' => var_export($routeMiddlewares, true),
+            'controller_identifier_signature' => implode(', ', array_map(static fn (array $item): string => 'string $' . $item['parameter'], $keyParameters)),
+            'controller_identifier_use' => implode(', ', array_map(static fn (array $item): string => '$' . $item['parameter'], $keyParameters)),
+            'identifier_expression' => $identifierExpression,
+            'repository_delete' => $this->repositoryDelete($table),
+            'repository_create_return' => $table->hasCompositeKey()
+                ? '        return $this->findOrFail($this->identifier($model));'
+                : '        return $model->refresh();',
+            'repository_update' => $table->hasCompositeKey()
+                ? "        \$id = \$this->identifier(\$model);\n        \$model->fill(\$data);\n        if (\$model->getDirty() !== []) {\n            \$this->queryByIdentifier(\$id)->update(\$model->getDirty());\n        }\n        return \$this->findOrFail(\$id);"
+                : "        \$model->fill(\$data);\n        \$model->save();\n        return \$model->refresh();",
+            'test_id' => var_export(count($testIdentifier) === 1 ? reset($testIdentifier) : $testIdentifier, true),
+            'test_identifier_payload' => var_export($testIdentifier, true),
+            'test_controller_arguments' => implode(', ', array_map(
+                fn (array $item): string => '(string) ' . var_export($testIdentifier[$item['column']], true),
+                $keyParameters
+            )),
+            'model_identifier' => count($table->primaryKey) === 1
+                ? '$model->getAttribute(' . var_export($key->name, true) . ')'
+                : '[' . implode(', ', array_map(static fn (string $name): string =>
+                    var_export($name, true) . ' => $model->getAttribute(' . var_export($name, true) . ')', $table->primaryKey)) . ']',
+            'updated_identifier' => count($table->primaryKey) === 1
+                ? '$updated->getAttribute(' . var_export($key->name, true) . ')'
+                : '[' . implode(', ', array_map(static fn (string $name): string =>
+                    var_export($name, true) . ' => $updated->getAttribute(' . var_export($name, true) . ')', $table->primaryKey)) . ']',
         ];
     }
 
@@ -107,6 +160,11 @@ final class SchemaVariables
     {
         $table = $context->schema;
         $lines = [];
+        $writableNames = array_map(static fn (Column $column): string => $column->name, $table->writable($update));
+        $routeByColumn = [];
+        foreach ($this->keyParameters($table->primaryKey) as $parameter) {
+            $routeByColumn[$parameter['column']] = $parameter['parameter'];
+        }
         foreach ($table->writable($update) as $column) {
             $requiredKey = in_array($column->name, $table->primaryKey, true) && $column->kind() !== 'uuid';
             $rules = [var_export($update || (! $requiredKey && ($column->nullable || $column->default !== null)) ? 'sometimes' : 'required', true)];
@@ -136,23 +194,90 @@ final class SchemaVariables
             if ($column->enum !== []) {
                 $rules[] = '\Hyperf\Validation\Rule::in(' . var_export($column->enum, true) . ')';
             }
+            $rules = array_merge($rules, $this->checkRules($table->checks, $column));
             foreach ($table->uniqueKeys as $unique) {
-                if ($unique !== [$column->name]) {
-                    continue; // Composite constraints remain enforced by the database.
+                $applicable = array_values(array_intersect($unique, $writableNames));
+                if (! in_array($column->name, $applicable, true)) {
+                    continue;
+                }
+                if (count($unique) > 1) {
+                    $requiredWith = array_values(array_diff($applicable, [$column->name]));
+                    if ($requiredWith !== []) {
+                        $rules[] = var_export('required_with:' . implode(',', $requiredWith), true);
+                    }
+                    if ($column->name !== $applicable[array_key_last($applicable)]) {
+                        continue;
+                    }
                 }
                 $rule = '\Hyperf\Validation\Rule::unique(' . var_export($context->connection . '.' . $context->table, true)
                     . ', ' . var_export($column->name, true) . ')';
+                $scope = array_values(array_diff($unique, [$column->name]));
+                if ($scope !== []) {
+                    $clauses = [];
+                    foreach ($scope as $name) {
+                        $value = in_array($name, $writableNames, true)
+                            ? '$this->input(' . var_export($name, true) . ')'
+                            : ($update && isset($routeByColumn[$name])
+                                ? '$this->route(' . var_export($routeByColumn[$name], true) . ')' : null);
+                        if ($value === null) {
+                            continue 2;
+                        }
+                        $clauses[] = '->where(' . var_export($name, true) . ', ' . $value . ')';
+                    }
+                    $rule .= '->where(fn ($query) => $query' . implode('', $clauses) . ')';
+                }
                 if ($update) {
-                    $rule .= '->ignore($this->route(\'id\'), ' . var_export($table->key()->name, true) . ')';
+                    if (count($table->primaryKey) === 1) {
+                        $rule .= '->ignore($this->route(\'id\'), ' . var_export($table->key()->name, true) . ')';
+                    } else {
+                        $parameters = $this->keyParameters($table->primaryKey);
+                        $exclusions = [];
+                        foreach ($parameters as $parameter) {
+                            $method = $exclusions === [] ? 'where' : 'orWhere';
+                            $exclusions[] = '->' . $method . '(' . var_export($parameter['column'], true)
+                                . ', \'!=\', $this->route(' . var_export($parameter['parameter'], true) . '))';
+                        }
+                        $rule .= '->where(fn ($query) => $query->where(fn ($current) => $current' . implode('', $exclusions) . '))';
+                    }
                 }
                 $rules[] = $rule;
             }
             foreach ($table->foreignKeys as $foreign) {
-                if ($foreign['columns'] === [$column->name]) {
-                    $rules[] = '\Hyperf\Validation\Rule::exists('
-                        . var_export($context->connection . '.' . $foreign['schema'] . '.' . $foreign['table'], true)
-                        . ', ' . var_export($foreign['references'][0], true) . ')';
+                $position = array_search($column->name, $foreign['columns'], true);
+                if ($position === false) {
+                    continue;
                 }
+                $applicable = array_values(array_intersect($foreign['columns'], $writableNames));
+                if (count($foreign['columns']) > 1) {
+                    $requiredWith = array_values(array_diff($applicable, [$column->name]));
+                    if ($requiredWith !== []) {
+                        $rules[] = var_export('required_with:' . implode(',', $requiredWith), true);
+                    }
+                    if ($column->name !== $applicable[array_key_last($applicable)]) {
+                        continue;
+                    }
+                }
+                $rule = '\Hyperf\Validation\Rule::exists('
+                    . var_export($context->connection . '.' . $foreign['schema'] . '.' . $foreign['table'], true)
+                    . ', ' . var_export($foreign['references'][$position], true) . ')';
+                $scope = [];
+                foreach ($foreign['columns'] as $index => $local) {
+                    if ($index !== $position) {
+                        $value = in_array($local, $writableNames, true)
+                            ? '$this->input(' . var_export($local, true) . ')'
+                            : ($update && isset($routeByColumn[$local])
+                                ? '$this->route(' . var_export($routeByColumn[$local], true) . ')' : null);
+                        if ($value === null) {
+                            continue 2;
+                        }
+                        $scope[] = '->where(' . var_export($foreign['references'][$index], true)
+                            . ', ' . $value . ')';
+                    }
+                }
+                if ($scope !== []) {
+                    $rule .= '->where(fn ($query) => $query' . implode('', $scope) . ')';
+                }
+                $rules[] = $rule;
             }
             $lines[] = '            ' . var_export($column->name, true) . ' => [' . implode(', ', array_unique($rules)) . '],';
         }
@@ -238,5 +363,73 @@ final class SchemaVariables
             $lines[] = '            ' . var_export($name, true) . ' => ' . $value . ',';
         }
         return implode("\n", $lines);
+    }
+
+    /** @return array<int, array{column: string, parameter: string}> */
+    private function keyParameters(array $primaryKey): array
+    {
+        $composite = count($primaryKey) > 1;
+        return array_map(static fn (string $column, int $index): array => [
+            'column' => $column,
+            'parameter' => $composite ? 'key' . ($index + 1) : 'id',
+        ], $primaryKey, array_keys($primaryKey));
+    }
+
+    private function exampleValue(Column $column): string
+    {
+        return match ($column->kind()) {
+            'uuid' => 'd52031f2-026c-4a79-83f8-e8892c734c81',
+            default => '1',
+        };
+    }
+
+    private function repositoryDelete(\GustavoQueiroz\HyperfCrudGenerator\Schema\Table $table): string
+    {
+        if (! $table->hasCompositeKey()) {
+            return '        $model->delete();';
+        }
+        $softDeletes = false;
+        foreach ($table->columns as $column) {
+            $softDeletes = $softDeletes || ($column->name === 'deleted_at' && $column->nullable);
+        }
+        return $softDeletes
+            ? "        \$this->queryByIdentifier(\$this->identifier(\$model))->update(['deleted_at' => \$model->freshTimestampString()]);"
+            : '        $this->queryByIdentifier($this->identifier($model))->delete();';
+    }
+
+    private function checkRules(array $checks, Column $column): array
+    {
+        $rules = [];
+        $quoted = preg_quote($column->name, '/');
+        $identifier = '(?:"' . $quoted . '"|`' . $quoted . '`|\[' . $quoted . '\]|\b' . $quoted . '\b)';
+        foreach ($checks as $check) {
+            $expression = (string) ($check['expression'] ?? '');
+            if (preg_match('/\bOR\b/i', $expression)) {
+                continue;
+            }
+            if (preg_match('/' . $identifier . '\s+BETWEEN\s+\(?\s*(-?\d+(?:\.\d+)?)\s*\)?\s+AND\s+\(?\s*(-?\d+(?:\.\d+)?)\s*\)?/i', $expression, $match)) {
+                $rules[] = var_export('between:' . $match[1] . ',' . $match[2], true);
+            } else {
+                if (preg_match('/' . $identifier . '\s*>=\s*\(?\s*(-?\d+(?:\.\d+)?)/i', $expression, $match)) {
+                    $rules[] = var_export('min:' . $match[1], true);
+                }
+                if (preg_match('/' . $identifier . '\s*<=\s*\(?\s*(-?\d+(?:\.\d+)?)/i', $expression, $match)) {
+                    $rules[] = var_export('max:' . $match[1], true);
+                }
+            }
+            if ($column->kind() === 'string' && preg_match('/(?:CHAR_LENGTH|CHARACTER_LENGTH|LEN|LENGTH)\s*\(\s*' . $identifier . '\s*\)\s*<=\s*(\d+)/i', $expression, $match)) {
+                $rules[] = var_export('max:' . $match[1], true);
+            }
+            if (preg_match('/' . $identifier . '\s+IN\s*\(([^()]*)\)/i', $expression, $match)) {
+                preg_match_all("/'((?:''|[^'])*)'|(-?\\d+(?:\\.\\d+)?)/", $match[1], $values, PREG_SET_ORDER);
+                $allowed = array_map(static fn (array $value): string|int|float => $value[1] !== ''
+                    ? str_replace("''", "'", $value[1])
+                    : (str_contains($value[2], '.') ? (float) $value[2] : (int) $value[2]), $values);
+                if ($allowed !== []) {
+                    $rules[] = '\Hyperf\Validation\Rule::in(' . var_export($allowed, true) . ')';
+                }
+            }
+        }
+        return $rules;
     }
 }

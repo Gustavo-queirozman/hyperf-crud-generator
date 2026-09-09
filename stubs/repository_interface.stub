@@ -9,7 +9,7 @@ use {{ namespace }}\Model\{{ model }};
 interface {{ model }}RepositoryInterface
 {
     public function paginate(int $page, int $perPage, string $sort, string $direction, array $filters = [], ?string $search = null): array;
-    public function findOrFail(int|string $id): {{ model }};
+    public function findOrFail(array|int|string $id): {{ model }};
     public function create(array $data): {{ model }};
     public function update({{ model }} $model, array $data): {{ model }};
     public function delete({{ model }} $model): void;
